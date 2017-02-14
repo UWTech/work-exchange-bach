@@ -107,12 +107,12 @@ def validate(keys, ring):
 
 def validate_new_org_request(input_stuff, ch, value):
     """Task for validating the input"""
-    keys = [["org_name",str],
-            ["team_manager",str],
-            ["spaces",list],
-            ["app_team_github_team",int],
-            ["github_url",str],
-            ["app_team_manager_github_user",str]]
+    keys = [["org_name", str],
+            ["team_manager", str],
+            ["spaces", list],
+            ["app_team_github_team", int],
+            ["github_url", str],
+            ["app_team_manager_github_user", str]]
     print("Sending off to validation")
     check = validate(keys, input_stuff['body'])
     print("Got back: {0}".format(check))
