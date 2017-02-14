@@ -153,6 +153,7 @@ def send_vm_info(input_stuff, ch, value):
     """Sending out the new info"""
     body = {}
     body['assign_to_key'] = "notification_sent"
+    body['username'] = input_stuff['body']['respond_to']
     reply_to = "request.id."+str(input_stuff['def'].id)
     if '@' in input_stuff['body']['respond_to']:
         ch.basic_publish(exchange=EXCHANGE,
