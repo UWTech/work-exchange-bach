@@ -283,7 +283,7 @@ def upload_cf_mgmt_pipeline(input_stuff, ch, value):
     """Task for uploading cf-mgmt to concourse"""
     body = {}
     body['assign_to_key'] = "cf_mgmt_pipeline_upload"
-    body['clone_url'] = input_stuff['body']['control_repo_url']
+    body['clone_url'] = input_stuff['body']['compiler_repo_url']
     name = input_stuff['body']['env_type']+'-org-compiler'
     body['pipeline_name'] = name
     body['include_git'] = True
