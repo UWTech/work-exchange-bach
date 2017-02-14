@@ -83,9 +83,10 @@ def load_rubrics():
     """Required function for loading in custom rubrics"""
     rubrics = []
     new_vm_tasks = [
-        Task("servers.validate_new_org_request", 1, 0),
-        Task("servers.generate_team_repo_url", 2, 1)]
-    rubrics.append(Rubric("new_org", new_org_tasks))
+        Task("servers.validate_new_vms_request", 1, 0),
+        Task("servers.retrieve_vm_info", 2, 1),
+        Task("servers.send_vm_info", 4, 2)]
+    rubrics.append(Rubric("new_vms", new_vms_tasks))
     return rubrics
 
 def validate(keys, ring):
@@ -105,14 +106,13 @@ def validate(keys, ring):
             return "Missing required key: "+key[0], 400
     return "All good", 200
 
-def validate_new_org_request(input_stuff, ch, value):
+def validate_new_vms_request(input_stuff, ch, value):
     """Task for validating the input"""
-    keys = [["org_name", str],
-            ["team_manager", str],
-            ["spaces", list],
-            ["app_team_github_team", int],
-            ["github_url", str],
-            ["app_team_manager_github_user", str]]
+    keys = [["datacenter", str],
+            ["env_type", str],
+            ["quantity", int],
+            ["vm_type", str],
+            ["respond_to", str]]
     print("Sending off to validation")
     check = validate(keys, input_stuff['body'])
     print("Got back: {0}".format(check))
@@ -130,3 +130,43 @@ def validate_new_org_request(input_stuff, ch, value):
                          body='{{"key":"{0}","value":"{1}"}}'.format('validation',
                                                                      check[0]))
     # return
+def retrieve_vm_info(input_stuff, ch, value):
+    """Sending out the new info"""
+    body = {}
+    body['assign_to_key'] = "login_information"
+    body['datacenter'] = input_stuff['body']['datacenter']
+    body['env_type'] = input_stuff['body']['env_type']
+    body['quantity'] = input_stuff['body']['quantity']
+    body['vm_type'] = input_stuff['body']['vm_type']
+    body['respond_to'] = input_stuff['body']['respond_to']
+    reply_to = "request.id."+str(input_stuff['def'].id)
+    ch.basic_publish(exchange=EXCHANGE,
+                     routing_key="vms.retrieve_vms",
+                     properties=pika.BasicProperties(reply_to=reply_to,
+                                                     correlation_id=str(value),
+                                                     delivery_mode=2),
+                     body=json.dumps(body))
+    # return "A github url!!!"+input_stuff
+    return
+
+def send_vm_info(input_stuff, ch, value):
+    """Sending out the new info"""
+    body = {}
+    body['assign_to_key'] = "notification_sent"
+    reply_to = "request.id."+str(input_stuff['def'].id)
+    if '@' in input_stuff['body']['respond_to']:
+        ch.basic_publish(exchange=EXCHANGE,
+                         routing_key="email.send_email",
+                         properties=pika.BasicProperties(reply_to=reply_to,
+                                                         correlation_id=str(value),
+                                                         delivery_mode=2),
+                         body=json.dumps(body))
+    else:
+        ch.basic_publish(exchange=EXCHANGE,
+                         routing_key="hubot.send_dm",
+                         properties=pika.BasicProperties(reply_to=reply_to,
+                                                         correlation_id=str(value),
+                                                         delivery_mode=2),
+                         body=json.dumps(body))
+    # return "A github url!!!"+input_stuff
+    return
