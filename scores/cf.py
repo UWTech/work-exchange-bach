@@ -284,7 +284,7 @@ def upload_cf_mgmt_pipeline(input_stuff, ch, value):
     body = {}
     body['assign_to_key'] = "cf_mgmt_pipeline_upload"
     body['clone_url'] = input_stuff['body']['compiler_repo_url']
-    name = input_stuff['body']['env_type']+'-org-compiler'
+    name = input_stuff['body']['env_type']+'-compiler'
     body['pipeline_name'] = name
     body['include_git'] = True
     reply_to = "request.id."+str(input_stuff['def'].id)
