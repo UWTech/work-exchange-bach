@@ -257,6 +257,7 @@ def upload_org_pipeline(input_stuff, ch, value):
 def update_cf_mgmt_repo(input_stuff, ch, value):
     """Task for uploading cf-mgmt to concourse"""
     body = {}
+    reply_to = "request.id."+str(input_stuff['def'].id)
     try:
         body['assign_to_key'] = "cf_mgmt_update"
         body['org_name'] = input_stuff['body']['org_name']
@@ -270,7 +271,6 @@ def update_cf_mgmt_repo(input_stuff, ch, value):
                          properties=pika.BasicProperties(correlation_id=str(value),delivery_mode=2),
                          body=json.dumps({'key':'KeyError','value':err}))
     else:
-        reply_to = "request.id."+str(input_stuff['def'].id)
         ch.basic_publish(exchange=EXCHANGE,
                          routing_key="template_repos.add_submodule",
                          properties=pika.BasicProperties(reply_to=reply_to,
