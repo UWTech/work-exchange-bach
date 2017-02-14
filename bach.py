@@ -180,7 +180,7 @@ def router(ch, method, properties, body):
                                                                                  request_id))
                     LOGGER.info("Sending request off to process...")
                     process_request(REQUEST_LIST[request_id], ch, method)
-            elif 'vms' in checker[0]:
+            elif 'vm' in checker[0]:
                 if 'new_vms' in checker[1]:
                     request_id = random.randint(1000000000, 9999999999)
                     LOGGER.info("Making new request. ID: %r", request_id)

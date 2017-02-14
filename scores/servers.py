@@ -86,7 +86,7 @@ def load_rubrics():
         Task("servers.validate_new_vms_request", 1, 0),
         Task("servers.retrieve_vm_info", 2, 1),
         Task("servers.send_vm_info", 4, 2)]
-    rubrics.append(Rubric("new_vms", new_vms_tasks))
+    rubrics.append(Rubric("new_vms", new_vm_tasks))
     return rubrics
 
 def validate(keys, ring):
