@@ -139,9 +139,17 @@ def retrieve_vm_info(input_stuff, ch, value):
     body['quantity'] = input_stuff['body']['quantity']
     body['vm_type'] = input_stuff['body']['vm_type']
     body['respond_to'] = input_stuff['body']['respond_to']
+    try:
+        body['business_service'] = input_stuff['body']['business_service']
+    except KeyError:
+        body['business_service'] = input_stuff['body']['business_service'] = 'UNCD'
+    try:
+        body['vm_size'] = input_stuff['body']['vm_size']
+    except KeyError:
+        body['vm_size'] = input_stuff['body']['vm_size'] =  'S'
     reply_to = "request.id."+str(input_stuff['def'].id)
     ch.basic_publish(exchange=EXCHANGE,
-                     routing_key="vms.retrieve_vms",
+                     routing_key="builds.retrieve_vms",
                      properties=pika.BasicProperties(reply_to=reply_to,
                                                      correlation_id=str(value),
                                                      delivery_mode=2),
