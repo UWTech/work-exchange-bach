@@ -149,7 +149,7 @@ def retrieve_vm_info(input_stuff, ch, value):
         body['vm_size'] = input_stuff['body']['vm_size'] =  'S'
     reply_to = "request.id."+str(input_stuff['def'].id)
     ch.basic_publish(exchange=EXCHANGE,
-                     routing_key="builds.retrieve_vms",
+                     routing_key="vms.retrieve_vms",
                      properties=pika.BasicProperties(reply_to=reply_to,
                                                      correlation_id=str(value),
                                                      delivery_mode=2),
