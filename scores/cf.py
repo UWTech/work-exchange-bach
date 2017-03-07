@@ -100,7 +100,19 @@ def load_rubrics():
         Task("cf.remove_team_from_github", 16, 8),
         Task("cf.remove_org_from_cf", 32, 16)]
     rubrics.append(Rubric("delete_org", delete_org_tasks))
+    org_from_cf_tasks = [
+        Task("validate_build_cf_org_request", 1, 0)
+        Task("cf.generate_team_repo_url", 2, 1),
+        Task("cf.generate_org_repo_url", 4, 2),
+        Task("cf.build_from_cf_org", 8, 6),
+        Task("cf.build_team_repo", 16, 8),
+        Task("cf.upload_org_pipeline", 32, 16),
+        Task("cf.update_cf_mgmt_repo", 64, 32),
+        Task("cf.upload_cf_mgmt_pipeline", 128, 64)
+    ]
+    rubrics.append(Rubric("build_org_from_cf", org_from_cf_tasks))
     return rubrics
+
 def validate(keys, ring):
     """Validates that all of the keys are on the ring"""
     print("Validating input...")
@@ -378,6 +390,47 @@ def remove_team_from_github(input_stuff, ch, value):
     reply_to = "request.id."+str(input_stuff['def'].id)
     ch.basic_publish(exchange=EXCHANGE,
                      routing_key="github.remove_repo",
+                     properties=pika.BasicProperties(reply_to=reply_to,
+                                                     correlation_id=str(value),
+                                                     delivery_mode=2),
+                     body=json.dumps(body))
+    return
+
+def validate_build_cf_org_request(input_stuff, ch, value):
+    """Task for validating the input"""
+    keys = [["org_name",str],
+            ["team_manager",str],
+            ["app_team_github_team",int],
+            ["github_url",str],
+            ["app_team_manager_github_user",str]]
+    print("Sending off to validation")
+    check = validate(keys, input_stuff['body'])
+    print("Got back: {0}".format(check))
+    reply_to = "request.id."+str(input_stuff['def'].id)
+    if check[1] == 200:
+        ch.basic_publish(exchange=EXCHANGE,
+                         routing_key=reply_to,
+                         properties=pika.BasicProperties(correlation_id=str(value),delivery_mode=2),
+                         body='{{"key":"{0}","value":"{1}"}}'.format('validation',
+                                                                     check[0]))
+    else:
+        ch.basic_publish(exchange=EXCHANGE,
+                         routing_key=reply_to+'.error',
+                         properties=pika.BasicProperties(correlation_id=str(value),delivery_mode=2),
+                         body='{{"key":"{0}","value":"{1}"}}'.format('validation',
+                                                                     check[0]))
+    # return
+def build_from_cf_org(input_stuff, ch, value):
+    """Task for building the file structure for the org repo"""
+    body = {}
+    body['assign_to_key'] = "spaces"
+    body['github_url'] = input_stuff['body']['github_url']
+    body['team_ssl_url'] = input_stuff['body']['team_ssl_remote_url']
+    body['org_ssl_url'] = input_stuff['body']['org_ssl_remote_url']
+    body['org_name'] = input_stuff['body']['org_name']
+    reply_to = "request.id."+str(input_stuff['def'].id)
+    ch.basic_publish(exchange=EXCHANGE,
+                     routing_key="template_repos.build_from_cf_org",
                      properties=pika.BasicProperties(reply_to=reply_to,
                                                      correlation_id=str(value),
                                                      delivery_mode=2),
