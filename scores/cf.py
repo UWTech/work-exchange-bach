@@ -402,7 +402,8 @@ def validate_build_cf_org_request(input_stuff, ch, value):
             ["team_manager",str],
             ["app_team_github_team",int],
             ["github_url",str],
-            ["app_team_manager_github_user",str]]
+            ["app_team_manager_github_user",str],
+            ["foundation",str]]
     print("Sending off to validation")
     check = validate(keys, input_stuff['body'])
     print("Got back: {0}".format(check))
@@ -428,6 +429,7 @@ def build_from_cf_org(input_stuff, ch, value):
     body['team_ssl_url'] = input_stuff['body']['team_ssl_remote_url']
     body['org_ssl_url'] = input_stuff['body']['org_ssl_remote_url']
     body['org_name'] = input_stuff['body']['org_name']
+    body['foundation'] = input_stuff['body']['foundation']
     reply_to = "request.id."+str(input_stuff['def'].id)
     ch.basic_publish(exchange=EXCHANGE,
                      routing_key="template_repos.build_from_cf_org",
