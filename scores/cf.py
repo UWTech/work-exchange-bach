@@ -101,7 +101,7 @@ def load_rubrics():
         Task("cf.remove_org_from_cf", 32, 16)]
     rubrics.append(Rubric("delete_org", delete_org_tasks))
     org_from_cf_tasks = [
-        Task("validate_build_cf_org_request", 1, 0)
+        Task("cf.validate_build_cf_org_request", 1, 0),
         Task("cf.generate_team_repo_url", 2, 1),
         Task("cf.generate_org_repo_url", 4, 2),
         Task("cf.build_from_cf_org", 8, 6),
