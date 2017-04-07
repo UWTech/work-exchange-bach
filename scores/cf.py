@@ -95,9 +95,9 @@ def load_rubrics():
     delete_org_tasks = [
         Task("cf.validate_delete_org_request", 1, 0),
         Task("cf.remove_org_from_pipeline_repo", 2, 1),
-        Task("cf.remove_org_from_pipeline", 4, 2),
-        Task("cf.remove_org_from_github", 8, 4),
-        Task("cf.remove_team_from_github", 16, 8)]
+        Task("cf.remove_org_from_pipeline", 4, 2)]
+        # Task("cf.remove_org_from_github", 8, 4),
+        # Task("cf.remove_team_from_github", 16, 8)]
     rubrics.append(Rubric("delete_org", delete_org_tasks))
     org_from_cf_tasks = [
         Task("cf.validate_build_cf_org_request", 1, 0),
@@ -337,6 +337,9 @@ def remove_org_from_pipeline_repo(input_stuff, ch, value):
     """Task for deleting an org from the pipeline"""
     body = {}
     body['assign_to_key'] = "remove_org_from_pipeline_repo"
+    body['control_repo_url'] = input_stuff['body']['control_repo_url']
+    body['compiler_repo_url'] = input_stuff['body']['compiler_repo_url']
+    body['submodule'] = input_stuff['body']['org_name']
     reply_to = "request.id."+str(input_stuff['def'].id)
     ch.basic_publish(exchange=EXCHANGE,
                      routing_key="template_repos.remove_submodule",
