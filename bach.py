@@ -192,6 +192,18 @@ def router(ch, method, properties, body):
                                                                                  request_id))
                     LOGGER.info("Sending request off to process...")
                     process_request(REQUEST_LIST[request_id], ch, method)
+                elif 'delete_org' in checker[1]:
+                    request_id = random.randint(1000000000, 9999999999)
+                    LOGGER.info("Making new request. ID: %r", request_id)
+                    new_req = Request(request_id, "delete_org")
+                    REQUEST_LIST[request_id] = {"def":new_req, "body":body}
+                    ch.basic_publish(exchange=EXCHANGE,
+                                     routing_key="logger.info",
+                                     properties=pika.BasicProperties(delivery_mode=2),
+                                     body='{{"key":"{0}","value":"{1}"}}'.format('new_request_id',
+                                                                                 request_id))
+                    LOGGER.info("Sending request off to process...")
+                    process_request(REQUEST_LIST[request_id], ch, method)
             elif 'vm' in checker[0]:
                 if 'new_vms' in checker[1]:
                     request_id = random.randint(1000000000, 9999999999)
