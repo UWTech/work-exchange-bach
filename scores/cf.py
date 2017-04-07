@@ -97,8 +97,7 @@ def load_rubrics():
         Task("cf.remove_org_from_pipeline_repo", 2, 1),
         Task("cf.remove_org_from_pipeline", 4, 2),
         Task("cf.remove_org_from_github", 8, 4),
-        Task("cf.remove_team_from_github", 16, 8),
-        Task("cf.remove_org_from_cf", 32, 16)]
+        Task("cf.remove_team_from_github", 16, 8)]
     rubrics.append(Rubric("delete_org", delete_org_tasks))
     org_from_cf_tasks = [
         Task("cf.validate_build_cf_org_request", 1, 0),
