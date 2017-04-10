@@ -132,7 +132,7 @@ def validate(keys, ring):
 def validate_new_org_request(input_stuff, ch, value):
     """Task for validating the input"""
     keys = [["org_name",str],
-            ["team_manager",str],
+            ["team_manager",str, list],
             ["spaces",list],
             ["app_team_github_team",int],
             ["github_url",str],
