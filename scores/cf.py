@@ -351,6 +351,10 @@ def remove_org_from_pipeline(input_stuff, ch, value):
     """Task for deleting an org from the pipeline"""
     body = {}
     body['assign_to_key'] = "remove_org_from_pipeline"
+    body['clone_url'] = input_stuff['body']['compiler_repo_url']
+    name = input_stuff['body']['env_type']+'-compiler'
+    body['pipeline_name'] = name
+    body['include_git'] = True
     reply_to = "request.id."+str(input_stuff['def'].id)
     ch.basic_publish(exchange=EXCHANGE,
                      routing_key="fly.set_pipeline",
