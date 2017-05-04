@@ -90,7 +90,8 @@ def load_rubrics():
         Task("cf.build_org_repo", 16, 8),
         Task("cf.upload_org_pipeline", 32, 16),
         Task("cf.update_cf_mgmt_repo", 64, 32),
-        Task("cf.upload_cf_mgmt_pipeline", 128, 64)]
+        Task("cf.upload_cf_mgmt_pipeline", 128, 64),
+        Task("cf.email_members", 256, 128)]
     rubrics.append(Rubric("new_org", new_org_tasks))
     delete_org_tasks = [
         Task("cf.validate_delete_org_request", 1, 0),
@@ -437,6 +438,22 @@ def build_from_cf_org(input_stuff, ch, value):
     reply_to = "request.id."+str(input_stuff['def'].id)
     ch.basic_publish(exchange=EXCHANGE,
                      routing_key="template_repos.build_from_cf_org",
+                     properties=pika.BasicProperties(reply_to=reply_to,
+                                                     correlation_id=str(value),
+                                                     delivery_mode=2),
+                     body=json.dumps(body))
+    return
+
+def email_members(input_stuff, ch, value):
+    """Task for sending an email to notify users about a completed cf org"""
+    body = {}
+    body['assign_to_key'] = "cf_org_complete_email"
+    body['org_name'] = input_stuff['body']['org_name']
+    body['team_manager'] = input_stuff['body']['team_manager']
+    body['spaces'] = input_stuff['body']['spaces']
+    reply_to = "request.id."+str(input_stuff['def'].id)
+    ch.basic_publish(exchange=EXCHANGE,
+                     routing_key="email.send_cf_org_mail_template",
                      properties=pika.BasicProperties(reply_to=reply_to,
                                                      correlation_id=str(value),
                                                      delivery_mode=2),
