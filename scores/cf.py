@@ -451,6 +451,8 @@ def email_members(input_stuff, ch, value):
     body['org_name'] = input_stuff['body']['org_name']
     body['team_manager'] = input_stuff['body']['team_manager']
     body['spaces'] = input_stuff['body']['spaces']
+    body['team_ssl_url'] = input_stuff['body']['team_ssl_remote_url']
+    body['org_ssl_url'] = input_stuff['body']['org_ssl_remote_url']
     reply_to = "request.id."+str(input_stuff['def'].id)
     ch.basic_publish(exchange=EXCHANGE,
                      routing_key="email.send_cf_org_mail_template",
