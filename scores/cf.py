@@ -161,9 +161,9 @@ def generate_team_repo_url(input_stuff, ch, value):
     body = {}
     body['assign_to_key'] = "team_ssl_remote_url"
     body['github_url'] = input_stuff['body']['github_url']
-    name = input_stuff['body']['env_type']+'-'+input_stuff['body']['org_name']+'-team'
+    name = input_stuff['body']['org_name']+'-team'
     body['name'] = name
-    body['github_org'] = 'cloudfoundry-mgmt' #TODO: abstract this out into a variable
+    body['github_org'] = input_stuff['body']['github_org']
     teams = []
     team = {
         "id":input_stuff['body']['app_team_github_team'],
@@ -191,9 +191,9 @@ def generate_org_repo_url(input_stuff, ch, value):
     body = {}
     body['assign_to_key'] = "org_ssl_remote_url"
     body['github_url'] = input_stuff['body']['github_url']
-    name = input_stuff['body']['env_type']+'-'+input_stuff['body']['org_name']+'-org'
+    name = input_stuff['body']['org_name']+'-org'
     body['name'] = name
-    body['github_org'] = 'cloudfoundry-mgmt' #TODO: abstract this out into a variable
+    body['github_org'] = input_stuff['body']['github_org']
     teams = []
     team = {
         "id":input_stuff['body']['app_team_github_team'],
