@@ -10,5 +10,7 @@ applications:
   services:
     - work-exchange
   env:
+    # required variables
     RMQ_SERVICE: p-rabbitmq
     GITHUB_ADMIN_TEAM_ID: 33
+    VERIFY: '/etc/ssl/certs'

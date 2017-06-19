@@ -135,13 +135,13 @@ def router(ch, method, properties, body):
     """Callback function for incoming messages. Routes the message to the correct function."""
     LOGGER.info(" [x] %r:%r", method.routing_key, body)
     try:
-        body = json.loads(str(body,"utf-8"))
+        body = json.loads(str(body, "utf-8"))
     except:
         LOGGER.debug("Unable to process %r", body)
         ch.basic_publish(exchange=EXCHANGE,
                          routing_key="logger.info",
                          properties=pika.BasicProperties(delivery_mode=2),
-                         body=json.dumps({'key':'Parsing failed','value':method.routing_key}))
+                         body=json.dumps({'key':'Parsing failed', 'value':method.routing_key}))
     # ch.basic_ack(delivery_tag = method.delivery_tag)
     else:
         routing_key = method.routing_key.split('.', 1)
