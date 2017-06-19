@@ -42,22 +42,23 @@ elif LOG_LEVEL == 'CRITICAL':
 #################################
 class Request:
     """Defines the format of a request"""
-    def __init__(self, r_id, type_name, pending=0, current=0, paused=False):
+    def __init__(self, r_id, type_name, pending=0, current=0, paused=False, retry_count=0):
         self.id = int(r_id)
         self.type = str(type_name)
         self.pending = int(pending)
         self.current = int(current)
         self.paused = paused
+        self.retry_count = int(retry_count)
     def __str__(self):
-        return "(ID:{0}, Type:{1}, Current_state:{2}, Pending_state{3})".format(self.id,
-                                                                                self.type,
-                                                                                self.current,
-                                                                                self.pending)
+        return "(ID:{0}, Type:{1}, Current_state:{2}, Pending_state:{3}, Retries:{4}, Paused:{5})" \
+               "".format(self.id, self.type,
+                         self.current, self.pending,
+                         self.retry_count, self.paused)
     def __repr__(self):
-        return "(ID:{0}, Type:{1}, Current_state:{2}, Pending_state{3})".format(self.id,
-                                                                                self.type,
-                                                                                self.current,
-                                                                                self.pending)
+        return "(ID:{0}, Type:{1}, Current_state:{2}, Pending_state:{3}, Retries:{4}, Paused:{5})" \
+               "".format(self.id, self.type,
+                         self.current, self.pending,
+                         self.retry_count, self.paused)
 
 class Rubric:
     """Defines the format of a Rubric. A rubric tells Bach what to do for a request."""
