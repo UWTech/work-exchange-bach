@@ -135,7 +135,7 @@ def validate_new_org_request(input_stuff, ch, value):
     keys = [["org_name",str],
             ["team_manager",str, list],
             ["spaces",list],
-            ["app_team_github_team",int],
+            ["app_team_github_team",int, str],
             ["github_url",str],
             ["app_team_manager_github_user",str]]
     print("Sending off to validation")
@@ -170,7 +170,7 @@ def generate_team_repo_url(input_stuff, ch, value):
         "permission":"pull"
     }
     teams.append(team)
-    if GITHUB_ADMIN_TEAM > 0:
+    if GITHUB_ADMIN_TEAM != '-1':
         teams.append({"id":GITHUB_ADMIN_TEAM, "permission":"admin"})
     body['teams'] = teams
     body['collabs'] = [{
@@ -200,7 +200,7 @@ def generate_org_repo_url(input_stuff, ch, value):
         "permission":"pull"
     }
     teams.append(team)
-    if GITHUB_ADMIN_TEAM > 0:
+    if GITHUB_ADMIN_TEAM != '-1':
         teams.append({"id":GITHUB_ADMIN_TEAM, "permission":"admin"})
     body['teams'] = teams
     reply_to = "request.id."+str(input_stuff['def'].id)
