@@ -6,8 +6,10 @@ requests. It pulls in 'scores' as extra modules to call for different rubrics.
 import os
 import sys
 import json
+import uuid
 import random
 import logging
+import hashlib
 
 # Import dependancies
 import pika
@@ -88,6 +90,11 @@ class Task:
                                                                     self.value,
                                                                     self.req_state)
 
+def generate_uuid(input_string):
+    """Generate a uuid based on the hash of the input and a random python uuid"""
+    input_md = hashlib.md5(input_string.encode())
+    return hashlib.sha256(input_md.digest()+uuid.uuid4().bytes)
+
 def initialize_processable_requests():
     """Loads the rubrics from the scores"""
     LOGGER.info("Initializing requests!")
@@ -98,6 +105,11 @@ def initialize_processable_requests():
             SCORES.append(name[0])
             func = eval(name[0]+'.load_rubrics')
             REQUEST_DEFINITIONS.extend(func())
+
+def add_request_to_queue(request_id, request_type, body):
+    """Add a request to the master queue"""
+    new_req = Request(request_id, request_type)
+    REQUEST_LIST[request_id] = {"def":new_req, "body":body}
 
 def remove_request_from_queue(request):
     """Removes a request from the queue"""
@@ -151,9 +163,9 @@ def router(ch, method, properties, body):
         try:
             if checker[0] == 'id':
                 LOGGER.debug("We need to keep processing request: %r", checker[1])
-                if int(checker[1]) in REQUEST_LIST:
+                if checker[1] in REQUEST_LIST:
                     # print("Request %r came through!" % checker[1])
-                    curr_request = REQUEST_LIST[int(checker[1])]
+                    curr_request = REQUEST_LIST[checker[1]]
                     if len(checker) >= 3:
                         # This request got an error!
                         if 'error' in checker[2]:
@@ -170,10 +182,11 @@ def router(ch, method, properties, body):
                     # print(body)
             elif 'cf' in checker[0]:
                 if 'new_org' in checker[1]:
-                    request_id = random.randint(1000000000, 9999999999)
+                    request_id = generate_uuid(json.dumps(body))
                     LOGGER.info("Making new request. ID: %r", request_id)
-                    new_req = Request(request_id, "new_org")
-                    REQUEST_LIST[request_id] = {"def":new_req, "body":body}
+                    # new_req = Request(request_id, "new_org")
+                    # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
+                    add_request_to_queue(request_id, "new_org", body)
                     ch.basic_publish(exchange=EXCHANGE,
                                      routing_key="logger.info",
                                      properties=pika.BasicProperties(delivery_mode=2),
@@ -182,10 +195,11 @@ def router(ch, method, properties, body):
                     LOGGER.info("Sending request off to process...")
                     process_request(REQUEST_LIST[request_id], ch, method)
                 elif 'build_org_from_cf' in checker[1]:
-                    request_id = random.randint(1000000000, 9999999999)
+                    request_id = generate_uuid(json.dumps(body))
                     LOGGER.info("Making new request. ID: %r", request_id)
-                    new_req = Request(request_id, "build_org_from_cf")
-                    REQUEST_LIST[request_id] = {"def":new_req, "body":body}
+                    # new_req = Request(request_id, "build_org_from_cf")
+                    # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
+                    add_request_to_queue(request_id, "build_org_from_cf", body)
                     ch.basic_publish(exchange=EXCHANGE,
                                      routing_key="logger.info",
                                      properties=pika.BasicProperties(delivery_mode=2),
@@ -194,10 +208,11 @@ def router(ch, method, properties, body):
                     LOGGER.info("Sending request off to process...")
                     process_request(REQUEST_LIST[request_id], ch, method)
                 elif 'delete_org' in checker[1]:
-                    request_id = random.randint(1000000000, 9999999999)
+                    request_id = generate_uuid(json.dumps(body))
                     LOGGER.info("Making new request. ID: %r", request_id)
-                    new_req = Request(request_id, "delete_org")
-                    REQUEST_LIST[request_id] = {"def":new_req, "body":body}
+                    # new_req = Request(request_id, "delete_org")
+                    # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
+                    add_request_to_queue(request_id, "delete_org", body)
                     ch.basic_publish(exchange=EXCHANGE,
                                      routing_key="logger.info",
                                      properties=pika.BasicProperties(delivery_mode=2),
@@ -207,10 +222,11 @@ def router(ch, method, properties, body):
                     process_request(REQUEST_LIST[request_id], ch, method)
             elif 'vm' in checker[0]:
                 if 'new_vms' in checker[1]:
-                    request_id = random.randint(1000000000, 9999999999)
+                    request_id = generate_uuid(json.dumps(body))
                     LOGGER.info("Making new request. ID: %r", request_id)
-                    new_req = Request(request_id, "new_vms")
-                    REQUEST_LIST[request_id] = {"def":new_req, "body":body}
+                    # new_req = Request(request_id, "new_vms")
+                    # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
+                    add_request_to_queue(request_id, "new_vms", body)
                     ch.basic_publish(exchange=EXCHANGE,
                                      routing_key="logger.info",
                                      properties=pika.BasicProperties(delivery_mode=2),
