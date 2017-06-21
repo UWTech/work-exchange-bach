@@ -42,6 +42,10 @@ elif LOG_LEVEL == 'CRITICAL':
 #################################
 ##### Orchestration Classes #####
 #################################
+
+class R_List:
+    """Defines the construct for a list of requests"""
+
 class Request:
     """Defines the format of a request"""
     def __init__(self, r_id, type_name, pending=0, current=0, paused=False, retry_count=0):
@@ -116,6 +120,22 @@ def remove_request_from_queue(request):
     LOGGER.info('Deleting request, id: %r', request['def'].id)
     del REQUEST_LIST[request['def'].id]
 
+def send_to_rabbit(channel, routing_key, value, body, reply_to=None):
+    """Generic function for sending messages into rabbitmq"""
+    if reply_to:
+        channel.basic_publish(exchange=EXCHANGE,
+                              routing_key=routing_key,
+                              properties=pika.BasicProperties(reply_to=reply_to,
+                                                              correlation_id=str(value),
+                                                              delivery_mode=2),
+                              body=json.dumps(body))
+    else:
+        channel.basic_publish(exchange=EXCHANGE,
+                              routing_key=routing_key,
+                              properties=pika.BasicProperties(correlation_id=str(value),
+                                                              delivery_mode=2),
+                              body=json.dumps(body))
+
 def process_request(request, ch, method):
     """Finds the next task for the request"""
     found = False
@@ -133,7 +153,12 @@ def process_request(request, ch, method):
                         LOGGER.debug("Running task: "+str(task.target))
                         request['def'].pending += task.value
                         task_func = eval(str(task.target))
-                        task_func(request, ch, task.value)
+                        response = task_func(request, ch, task.value)
+                        send_to_rabbit(ch,
+                                       response['routing_key'],
+                                       task.value,
+                                       response['body'],
+                                       response['reply_to'])
                         found = True
                         LOGGER.debug("Task complete")
             if not found:
@@ -150,10 +175,10 @@ def router(ch, method, properties, body):
         body = json.loads(str(body, "utf-8"))
     except:
         LOGGER.debug("Unable to process %r", body)
-        ch.basic_publish(exchange=EXCHANGE,
-                         routing_key="logger.info",
-                         properties=pika.BasicProperties(delivery_mode=2),
-                         body=json.dumps({'key':'Parsing failed', 'value':method.routing_key}))
+        send_to_rabbit(ch,
+                       "logger.info",
+                       -1,
+                       json.dumps({'key':'Parsing failed', 'value':method.routing_key}))
     # ch.basic_ack(delivery_tag = method.delivery_tag)
     else:
         routing_key = method.routing_key.split('.', 1)
@@ -187,11 +212,8 @@ def router(ch, method, properties, body):
                     # new_req = Request(request_id, "new_org")
                     # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
                     add_request_to_queue(request_id, "new_org", body)
-                    ch.basic_publish(exchange=EXCHANGE,
-                                     routing_key="logger.info",
-                                     properties=pika.BasicProperties(delivery_mode=2),
-                                     body='{{"key":"{0}","value":"{1}"}}'.format('new_request_id',
-                                                                                 request_id))
+                    send_to_rabbit(ch, "logger.info", -1,
+                                   json.dumps({'key':'new_request_id', 'value':request_id}))
                     LOGGER.info("Sending request off to process...")
                     process_request(REQUEST_LIST[request_id], ch, method)
                 elif 'build_org_from_cf' in checker[1]:
@@ -200,11 +222,8 @@ def router(ch, method, properties, body):
                     # new_req = Request(request_id, "build_org_from_cf")
                     # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
                     add_request_to_queue(request_id, "build_org_from_cf", body)
-                    ch.basic_publish(exchange=EXCHANGE,
-                                     routing_key="logger.info",
-                                     properties=pika.BasicProperties(delivery_mode=2),
-                                     body='{{"key":"{0}","value":"{1}"}}'.format('new_request_id',
-                                                                                 request_id))
+                    send_to_rabbit(ch, "logger.info", -1,
+                                   json.dumps({'key':'new_request_id', 'value':request_id}))
                     LOGGER.info("Sending request off to process...")
                     process_request(REQUEST_LIST[request_id], ch, method)
                 elif 'delete_org' in checker[1]:
@@ -213,11 +232,8 @@ def router(ch, method, properties, body):
                     # new_req = Request(request_id, "delete_org")
                     # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
                     add_request_to_queue(request_id, "delete_org", body)
-                    ch.basic_publish(exchange=EXCHANGE,
-                                     routing_key="logger.info",
-                                     properties=pika.BasicProperties(delivery_mode=2),
-                                     body='{{"key":"{0}","value":"{1}"}}'.format('new_request_id',
-                                                                                 request_id))
+                    send_to_rabbit(ch, "logger.info", -1,
+                                   json.dumps({'key':'new_request_id', 'value':request_id}))
                     LOGGER.info("Sending request off to process...")
                     process_request(REQUEST_LIST[request_id], ch, method)
             elif 'vm' in checker[0]:
@@ -227,11 +243,8 @@ def router(ch, method, properties, body):
                     # new_req = Request(request_id, "new_vms")
                     # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
                     add_request_to_queue(request_id, "new_vms", body)
-                    ch.basic_publish(exchange=EXCHANGE,
-                                     routing_key="logger.info",
-                                     properties=pika.BasicProperties(delivery_mode=2),
-                                     body='{{"key":"{0}","value":"{1}"}}'.format('new_request_id',
-                                                                                 request_id))
+                    send_to_rabbit(ch, "logger.info", -1,
+                                   json.dumps({'key':'new_request_id', 'value':request_id}))
                     LOGGER.info("Sending request off to process...")
                     process_request(REQUEST_LIST[request_id], ch, method)
 

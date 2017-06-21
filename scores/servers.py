@@ -106,7 +106,7 @@ def validate(keys, ring):
             return "Missing required key: "+key[0], 400
     return "All good", 200
 
-def validate_new_vms_request(input_stuff, ch, value):
+def validate_new_vms_request(input_stuff):
     """Task for validating the input"""
     keys = [["datacenter", str],
             ["env_type", str],
@@ -117,20 +117,14 @@ def validate_new_vms_request(input_stuff, ch, value):
     check = validate(keys, input_stuff['body'])
     print("Got back: {0}".format(check))
     reply_to = "request.id."+str(input_stuff['def'].id)
+    body = {"key":"validation", "value":check[0]}
     if check[1] == 200:
-        ch.basic_publish(exchange=EXCHANGE,
-                         routing_key=reply_to,
-                         properties=pika.BasicProperties(correlation_id=str(value),delivery_mode=2),
-                         body='{{"key":"{0}","value":"{1}"}}'.format('validation',
-                                                                     check[0]))
+        routing_key = reply_to
     else:
-        ch.basic_publish(exchange=EXCHANGE,
-                         routing_key=reply_to+'.error',
-                         properties=pika.BasicProperties(correlation_id=str(value),delivery_mode=2),
-                         body='{{"key":"{0}","value":"{1}"}}'.format('validation',
-                                                                     check[0]))
-    # return
-def retrieve_vm_info(input_stuff, ch, value):
+        routing_key = reply_to+'.error'
+    return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
+
+def retrieve_vm_info(input_stuff):
     """Sending out the new info"""
     body = {}
     body['assign_to_key'] = "login_information"
@@ -146,18 +140,12 @@ def retrieve_vm_info(input_stuff, ch, value):
     try:
         body['vm_size'] = input_stuff['body']['vm_size']
     except KeyError:
-        body['vm_size'] = input_stuff['body']['vm_size'] =  'S'
+        body['vm_size'] = input_stuff['body']['vm_size'] = 'S'
     reply_to = "request.id."+str(input_stuff['def'].id)
-    ch.basic_publish(exchange=EXCHANGE,
-                     routing_key="vms.retrieve_vms",
-                     properties=pika.BasicProperties(reply_to=reply_to,
-                                                     correlation_id=str(value),
-                                                     delivery_mode=2),
-                     body=json.dumps(body))
-    # return "A github url!!!"+input_stuff
-    return
+    routing_key = "vms.retrieve_vms"
+    return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
 
-def send_vm_info(input_stuff, ch, value):
+def send_vm_info(input_stuff):
     """Sending out the new info"""
     body = {}
     body['assign_to_key'] = "notification_sent"
@@ -165,18 +153,8 @@ def send_vm_info(input_stuff, ch, value):
     body['status'] = input_stuff['body']['login_information']
     reply_to = "request.id."+str(input_stuff['def'].id)
     if '@' in input_stuff['body']['respond_to']:
-        ch.basic_publish(exchange=EXCHANGE,
-                         routing_key="email.send_email",
-                         properties=pika.BasicProperties(reply_to=reply_to,
-                                                         correlation_id=str(value),
-                                                         delivery_mode=2),
-                         body=json.dumps(body))
+        routing_key = " email.send_email"
     else:
-        ch.basic_publish(exchange=EXCHANGE,
-                         routing_key="hubot.send_dm",
-                         properties=pika.BasicProperties(reply_to=reply_to,
-                                                         correlation_id=str(value),
-                                                         delivery_mode=2),
-                         body=json.dumps(body))
+        routing_key = "hubot.send_dm"
     # return "A github url!!!"+input_stuff
-    return
+    return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
