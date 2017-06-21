@@ -136,7 +136,7 @@ def send_to_rabbit(channel, routing_key, value, body, reply_to=None):
                                                               delivery_mode=2),
                               body=json.dumps(body))
 
-def process_request(request, ch, method):
+def process_request(request, channel):
     """Finds the next task for the request"""
     found = False
     LOGGER.debug("Looking for "+request['def'].type)
@@ -153,8 +153,8 @@ def process_request(request, ch, method):
                         LOGGER.debug("Running task: "+str(task.target))
                         request['def'].pending += task.value
                         task_func = eval(str(task.target))
-                        response = task_func(request, ch, task.value)
-                        send_to_rabbit(ch,
+                        response = task_func(request)
+                        send_to_rabbit(channel,
                                        response['routing_key'],
                                        task.value,
                                        response['body'],
@@ -168,14 +168,14 @@ def process_request(request, ch, method):
             return
     LOGGER.debug("Could not find definition for "+request['def'].type)
 
-def router(ch, method, properties, body):
+def router(channel, method, properties, body):
     """Callback function for incoming messages. Routes the message to the correct function."""
     LOGGER.info(" [x] %r:%r", method.routing_key, body)
     try:
         body = json.loads(str(body, "utf-8"))
     except:
         LOGGER.debug("Unable to process %r", body)
-        send_to_rabbit(ch,
+        send_to_rabbit(channel,
                        "logger.info",
                        -1,
                        json.dumps({'key':'Parsing failed', 'value':method.routing_key}))
@@ -203,7 +203,7 @@ def router(ch, method, properties, body):
                         LOGGER.debug("Assigning %r to key %r", body['value'], body['key'])
                         curr_request['body'][body['key']] = body['value']
                         LOGGER.info("Sending request off to process...")
-                        process_request(curr_request, ch, method)
+                        process_request(curr_request, channel)
                     # print(body)
             elif 'cf' in checker[0]:
                 if 'new_org' in checker[1]:
@@ -212,30 +212,30 @@ def router(ch, method, properties, body):
                     # new_req = Request(request_id, "new_org")
                     # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
                     add_request_to_queue(request_id, "new_org", body)
-                    send_to_rabbit(ch, "logger.info", -1,
+                    send_to_rabbit(channel, "logger.info", -1,
                                    json.dumps({'key':'new_request_id', 'value':request_id}))
                     LOGGER.info("Sending request off to process...")
-                    process_request(REQUEST_LIST[request_id], ch, method)
+                    process_request(REQUEST_LIST[request_id], channel)
                 elif 'build_org_from_cf' in checker[1]:
                     request_id = generate_uuid(json.dumps(body))
                     LOGGER.info("Making new request. ID: %r", request_id)
                     # new_req = Request(request_id, "build_org_from_cf")
                     # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
                     add_request_to_queue(request_id, "build_org_from_cf", body)
-                    send_to_rabbit(ch, "logger.info", -1,
+                    send_to_rabbit(channel, "logger.info", -1,
                                    json.dumps({'key':'new_request_id', 'value':request_id}))
                     LOGGER.info("Sending request off to process...")
-                    process_request(REQUEST_LIST[request_id], ch, method)
+                    process_request(REQUEST_LIST[request_id], channel)
                 elif 'delete_org' in checker[1]:
                     request_id = generate_uuid(json.dumps(body))
                     LOGGER.info("Making new request. ID: %r", request_id)
                     # new_req = Request(request_id, "delete_org")
                     # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
                     add_request_to_queue(request_id, "delete_org", body)
-                    send_to_rabbit(ch, "logger.info", -1,
+                    send_to_rabbit(channel, "logger.info", -1,
                                    json.dumps({'key':'new_request_id', 'value':request_id}))
                     LOGGER.info("Sending request off to process...")
-                    process_request(REQUEST_LIST[request_id], ch, method)
+                    process_request(REQUEST_LIST[request_id], channel)
             elif 'vm' in checker[0]:
                 if 'new_vms' in checker[1]:
                     request_id = generate_uuid(json.dumps(body))
@@ -243,17 +243,17 @@ def router(ch, method, properties, body):
                     # new_req = Request(request_id, "new_vms")
                     # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
                     add_request_to_queue(request_id, "new_vms", body)
-                    send_to_rabbit(ch, "logger.info", -1,
+                    send_to_rabbit(channel, "logger.info", -1,
                                    json.dumps({'key':'new_request_id', 'value':request_id}))
                     LOGGER.info("Sending request off to process...")
-                    process_request(REQUEST_LIST[request_id], ch, method)
+                    process_request(REQUEST_LIST[request_id], channel)
 
         except:
             LOGGER.info("Unexpected error: %r", sys.exc_info()[0])
             response = "{0}".format(sys.exc_info()[0]), 500
     finally:
         LOGGER.debug("Sending ack!")
-        ch.basic_ack(delivery_tag=method.delivery_tag)
+        channel.basic_ack(delivery_tag=method.delivery_tag)
 
 def main():
     """Setup the connection to the work exchange queue"""
