@@ -139,9 +139,9 @@ def validate_new_org_request(input_stuff):
             ["github_url", str],
             ["app_team_manager_github_user", str]]
     print("Sending off to validation")
-    check = validate(keys, input_stuff['body'])
+    check = validate(keys, input_stuff.body)
     print("Got back: {0}".format(check))
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    reply_to = "request.id."+input_stuff.id
     body = {"key":"validation", "value":check[0]}
     if check[1] == 200:
         routing_key = reply_to
@@ -153,13 +153,13 @@ def generate_team_repo_url(input_stuff):
     """Task for generating a team repo url in github"""
     body = {}
     body['assign_to_key'] = "team_ssl_remote_url"
-    body['github_url'] = input_stuff['body']['github_url']
-    name = input_stuff['body']['org_name']+'-team'
+    body['github_url'] = input_stuff.body['github_url']
+    name = input_stuff.body['org_name']+'-team'
     body['name'] = name
-    body['github_org'] = input_stuff['body']['github_org']
+    body['github_org'] = input_stuff.body['github_org']
     teams = []
     team = {
-        "id":input_stuff['body']['app_team_github_team'],
+        "id":input_stuff.body['app_team_github_team'],
         "permission":"pull"
     }
     teams.append(team)
@@ -167,9 +167,9 @@ def generate_team_repo_url(input_stuff):
         teams.append({"id":GITHUB_ADMIN_TEAM, "permission":"admin"})
     body['teams'] = teams
     body['collabs'] = [{
-        'name':input_stuff['body']['app_team_manager_github_user'],
+        'name':input_stuff.body['app_team_manager_github_user'],
         'permission':'push'}]
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    reply_to = "request.id."+str(input_stuff.id)
     routing_key = "github.generate_repo_url"
     # return "A github url!!!"+input_stuff
     return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
@@ -178,20 +178,20 @@ def generate_org_repo_url(input_stuff):
     """Task for generating an org repo url in github"""
     body = {}
     body['assign_to_key'] = "org_ssl_remote_url"
-    body['github_url'] = input_stuff['body']['github_url']
-    name = input_stuff['body']['org_name']+'-org'
+    body['github_url'] = input_stuff.body['github_url']
+    name = input_stuff.body['org_name']+'-org'
     body['name'] = name
-    body['github_org'] = input_stuff['body']['github_org']
+    body['github_org'] = input_stuff.body['github_org']
     teams = []
     team = {
-        "id":input_stuff['body']['app_team_github_team'],
+        "id":input_stuff.body['app_team_github_team'],
         "permission":"pull"
     }
     teams.append(team)
     if GITHUB_ADMIN_TEAM != '-1':
         teams.append({"id":GITHUB_ADMIN_TEAM, "permission":"admin"})
     body['teams'] = teams
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    reply_to = "request.id."+str(input_stuff.id)
     routing_key = "github.generate_repo_url"
     return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
 
@@ -199,12 +199,12 @@ def build_team_repo(input_stuff):
     """Task for building the file structure for the team repo"""
     body = {}
     body['assign_to_key'] = "team_repo_complete"
-    body['github_url'] = input_stuff['body']['github_url']
-    body['ssl_url'] = input_stuff['body']['team_ssl_remote_url']
-    body['org_name'] = input_stuff['body']['org_name']
-    body['team_manager'] = input_stuff['body']['team_manager']
-    body['spaces'] = input_stuff['body']['spaces']
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    body['github_url'] = input_stuff.body['github_url']
+    body['ssl_url'] = input_stuff.body['team_ssl_remote_url']
+    body['org_name'] = input_stuff.body['org_name']
+    body['team_manager'] = input_stuff.body['team_manager']
+    body['spaces'] = input_stuff.body['spaces']
+    reply_to = "request.id."+str(input_stuff.id)
     routing_key = "template_repos.cf_team_repo"
     return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
 
@@ -212,12 +212,12 @@ def build_org_repo(input_stuff):
     """Task for building the file structure for the org repo"""
     body = {}
     body['assign_to_key'] = "org_repo_complete"
-    body['github_url'] = input_stuff['body']['github_url']
-    body['team_ssl_url'] = input_stuff['body']['team_ssl_remote_url']
-    body['org_ssl_url'] = input_stuff['body']['org_ssl_remote_url']
-    body['org_name'] = input_stuff['body']['org_name']
-    body['spaces'] = input_stuff['body']['spaces']
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    body['github_url'] = input_stuff.body['github_url']
+    body['team_ssl_url'] = input_stuff.body['team_ssl_remote_url']
+    body['org_ssl_url'] = input_stuff.body['org_ssl_remote_url']
+    body['org_name'] = input_stuff.body['org_name']
+    body['spaces'] = input_stuff.body['spaces']
+    reply_to = "request.id."+str(input_stuff.id)
     routing_key = "template_repos.cf_org_repo"
     return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
 
@@ -225,27 +225,27 @@ def upload_org_pipeline(input_stuff):
     """Task for uploading the org to concourse"""
     body = {}
     body['assign_to_key'] = "org_pipeline_upload"
-    url = '{0}/{1}'.format(input_stuff['body']['github_url'],
-                           input_stuff['body']['org_ssl_remote_url'].split(':', 1)[1])
+    url = '{0}/{1}'.format(input_stuff.body['github_url'],
+                           input_stuff.body['org_ssl_remote_url'].split(':', 1)[1])
     body['clone_url'] = url
-    name = input_stuff['body']['env_type']+'-'+input_stuff['body']['org_name']+'-pipeline'
+    name = input_stuff.body['env_type']+'-'+input_stuff.body['org_name']+'-pipeline'
     body['pipeline_name'] = name
     body['include_git'] = True
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    reply_to = "request.id."+str(input_stuff.id)
     routing_key = "fly.set_pipeline"
     return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
 
 def update_cf_mgmt_repo(input_stuff):
     """Task for uploading cf-mgmt to concourse"""
     body = {}
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    reply_to = "request.id."+str(input_stuff.id)
     try:
         body['assign_to_key'] = "cf_mgmt_update"
-        body['org_name'] = input_stuff['body']['org_name']
-        body['org_ssl_url'] = input_stuff['body']['org_ssl_remote_url']
-        body['github_url'] = input_stuff['body']['github_url']
-        body['control_repo_url'] = input_stuff['body']['control_repo_url']
-        body['compiler_repo_url'] = input_stuff['body']['compiler_repo_url']
+        body['org_name'] = input_stuff.body['org_name']
+        body['org_ssl_url'] = input_stuff.body['org_ssl_remote_url']
+        body['github_url'] = input_stuff.body['github_url']
+        body['control_repo_url'] = input_stuff.body['control_repo_url']
+        body['compiler_repo_url'] = input_stuff.body['compiler_repo_url']
     except KeyError as err:
         routing_key = reply_to+'.error'
         body = {'key':'KeyError', 'value':err}
@@ -258,11 +258,11 @@ def upload_cf_mgmt_pipeline(input_stuff):
     """Task for uploading cf-mgmt to concourse"""
     body = {}
     body['assign_to_key'] = "cf_mgmt_pipeline_upload"
-    body['clone_url'] = input_stuff['body']['compiler_repo_url']
-    name = input_stuff['body']['env_type']+'-compiler'
+    body['clone_url'] = input_stuff.body['compiler_repo_url']
+    name = input_stuff.body['env_type']+'-compiler'
     body['pipeline_name'] = name
     body['include_git'] = True
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    reply_to = "request.id."+str(input_stuff.id)
     routing_key = "fly.set_pipeline"
     return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
 
@@ -273,9 +273,9 @@ def validate_delete_org_request(input_stuff):
             ["github_url", str],
             ["app_team_manager_github_user", str]]
     print("Sending off to validation")
-    check = validate(keys, input_stuff['body'])
+    check = validate(keys, input_stuff.body)
     print("Got back: {0}".format(check))
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    reply_to = "request.id."+str(input_stuff.id)
     body = {"key":"validation", "value":check[0]}
     if check[1] == 200:
         routing_key = reply_to
@@ -287,10 +287,10 @@ def remove_org_from_pipeline_repo(input_stuff):
     """Task for deleting an org from the pipeline"""
     body = {}
     body['assign_to_key'] = "remove_org_from_pipeline_repo"
-    body['control_repo_url'] = input_stuff['body']['control_repo_url']
-    body['compiler_repo_url'] = input_stuff['body']['compiler_repo_url']
-    body['submodule'] = input_stuff['body']['org_name']
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    body['control_repo_url'] = input_stuff.body['control_repo_url']
+    body['compiler_repo_url'] = input_stuff.body['compiler_repo_url']
+    body['submodule'] = input_stuff.body['org_name']
+    reply_to = "request.id."+str(input_stuff.id)
     routing_key = "template_repos.remove_submodule"
     return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
 
@@ -298,11 +298,11 @@ def remove_org_from_pipeline(input_stuff):
     """Task for deleting an org from the pipeline"""
     body = {}
     body['assign_to_key'] = "remove_org_from_pipeline"
-    body['clone_url'] = input_stuff['body']['compiler_repo_url']
-    name = input_stuff['body']['env_type']+'-compiler'
+    body['clone_url'] = input_stuff.body['compiler_repo_url']
+    name = input_stuff.body['env_type']+'-compiler'
     body['pipeline_name'] = name
     body['include_git'] = True
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    reply_to = "request.id."+str(input_stuff.id)
     routing_key = "fly.set_pipeline"
     return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
 
@@ -310,7 +310,7 @@ def remove_org_from_cf(input_stuff):
     """Task for deleting an org from the pipeline"""
     body = {}
     body['assign_to_key'] = "remove_org_from_cf"
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    reply_to = "request.id."+str(input_stuff.id)
     routing_key="cloudfoundry.remove_org"
     return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
 
@@ -318,7 +318,7 @@ def remove_org_from_github(input_stuff):
     """Task for deleting an org from the pipeline"""
     body = {}
     body['assign_to_key'] = "remove_org_from_github"
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    reply_to = "request.id."+str(input_stuff.id)
     routing_key = "github.remove_repo"
     return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
 
@@ -326,7 +326,7 @@ def remove_team_from_github(input_stuff):
     """Task for deleting an org from the pipeline"""
     body = {}
     body['assign_to_key'] = "remove_team_from_github"
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    reply_to = "request.id."+str(input_stuff.id)
     routing_key = "github.remove_repo"
     return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
 
@@ -339,9 +339,9 @@ def validate_build_cf_org_request(input_stuff):
             ["app_team_manager_github_user", str],
             ["foundation", str]]
     print("Sending off to validation")
-    check = validate(keys, input_stuff['body'])
+    check = validate(keys, input_stuff.body)
     print("Got back: {0}".format(check))
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    reply_to = "request.id."+str(input_stuff.id)
     body = {"key":"validation", "value":check[0]}
     if check[1] == 200:
         routing_key = reply_to
@@ -353,12 +353,12 @@ def build_from_cf_org(input_stuff):
     """Task for building the file structure for the org repo"""
     body = {}
     body['assign_to_key'] = "spaces"
-    body['github_url'] = input_stuff['body']['github_url']
-    body['team_ssl_url'] = input_stuff['body']['team_ssl_remote_url']
-    body['org_ssl_url'] = input_stuff['body']['org_ssl_remote_url']
-    body['org_name'] = input_stuff['body']['org_name']
-    body['foundation'] = input_stuff['body']['foundation']
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    body['github_url'] = input_stuff.body['github_url']
+    body['team_ssl_url'] = input_stuff.body['team_ssl_remote_url']
+    body['org_ssl_url'] = input_stuff.body['org_ssl_remote_url']
+    body['org_name'] = input_stuff.body['org_name']
+    body['foundation'] = input_stuff.body['foundation']
+    reply_to = "request.id."+str(input_stuff.id)
     routing_key = "template_repos.build_from_cf_org"
     return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
 
@@ -366,11 +366,11 @@ def email_members(input_stuff):
     """Task for sending an email to notify users about a completed cf org"""
     body = {}
     body['assign_to_key'] = "cf_org_complete_email"
-    body['org_name'] = input_stuff['body']['org_name']
-    body['team_manager'] = input_stuff['body']['team_manager']
-    body['spaces'] = input_stuff['body']['spaces']
-    body['team_ssl_url'] = input_stuff['body']['team_ssl_remote_url']
-    body['org_ssl_url'] = input_stuff['body']['org_ssl_remote_url']
-    reply_to = "request.id."+str(input_stuff['def'].id)
+    body['org_name'] = input_stuff.body['org_name']
+    body['team_manager'] = input_stuff.body['team_manager']
+    body['spaces'] = input_stuff.body['spaces']
+    body['team_ssl_url'] = input_stuff.body['team_ssl_remote_url']
+    body['org_ssl_url'] = input_stuff.body['org_ssl_remote_url']
+    reply_to = "request.id."+str(input_stuff.id)
     routing_key = "email.send_cf_org_mail_template"
     return {"routing_key":routing_key, "reply_to":reply_to, "body":body}
