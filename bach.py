@@ -112,45 +112,14 @@ class Bach:
                             LOGGER.info("Sending request off to process...")
                             process_request(curr_request, channel)
                         # print(body)
-                elif 'cf' in checker[0]:
-                    if 'new_org' in checker[1]:
-                        request_id = REQUEST_LIST.add_request_to_queue("new_org", body)
-                        LOGGER.info("Making new request. ID: %r", request_id)
-                        # new_req = Request(request_id, "new_org")
-                        # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
+                elif checker[0] in self.scores:
+                    if checker[1] in self.scores[checker[0]]:
+                        request_id = self.add_request_to_queue(checker[1], body)
+                        LOGGER.info("Generating %r request. ID: %r", checker[1], request_id)
                         send_to_rabbit(channel, "logger.info", -1,
                                        json.dumps({'key':'new_request_id', 'value':request_id}))
                         LOGGER.info("Sending request off to process...")
-                        process_request(REQUEST_LIST.get_request(request_id), channel)
-                    elif 'build_org_from_cf' in checker[1]:
-                        request_id = REQUEST_LIST.add_request_to_queue("build_org_from_cf", body)
-                        LOGGER.info("Making new request. ID: %r", request_id)
-                        # new_req = Request(request_id, "build_org_from_cf")
-                        # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
-                        send_to_rabbit(channel, "logger.info", -1,
-                                    json.dumps({'key':'new_request_id', 'value':request_id}))
-                        LOGGER.info("Sending request off to process...")
-                        process_request(REQUEST_LIST.get_request(request_id), channel)
-                    elif 'delete_org' in checker[1]:
-                        request_id = REQUEST_LIST.add_request_to_queue("delete_org", body)
-                        LOGGER.info("Making new request. ID: %r", request_id)
-                        # new_req = Request(request_id, "delete_org")
-                        # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
-                        send_to_rabbit(channel, "logger.info", -1,
-                                    json.dumps({'key':'new_request_id', 'value':request_id}))
-                        LOGGER.info("Sending request off to process...")
-                        process_request(REQUEST_LIST.get_request(request_id), channel)
-                elif 'servers' in checker[0]:
-                    if 'new_vms' in checker[1]:
-                        request_id = REQUEST_LIST.add_request_to_queue("new_vms", body)
-                        LOGGER.info("Making new request. ID: %r", request_id)
-                        # new_req = Request(request_id, "new_vms")
-                        # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
-                        send_to_rabbit(channel, "logger.info", -1,
-                                    json.dumps({'key':'new_request_id', 'value':request_id}))
-                        LOGGER.info("Sending request off to process...")
-                        process_request(REQUEST_LIST.get_request(request_id), channel)
-
+                        process_request(self.get_request(request_id), channel)
             except:
                 LOGGER.info("Unexpected error: %r", sys.exc_info()[0])
                 response = "{0}".format(sys.exc_info()[0]), 500
