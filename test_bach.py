@@ -20,11 +20,11 @@ def output_to_stdout(channel, routing_key, value, body, reply_to=None):
 def test_request_list():
     """Test adding and removing requests"""
     request_list = bach.Bach()
-    request_id = request_list.add_request_to_queue("request_type", {"body":"body"})
+    request_id = request_list.add_request_to_queue("score", "rubric", {"body":"body"})
     assert isinstance(request_id, str) is True
     assert request_list.check_in_list(request_id)
     request = request_list.get_request(request_id)
-    assert request.type == "request_type"
+    assert request.rubric == "rubric"
     assert request.body == {"body":"body"}
     assert request_list.remove_request_from_queue(request_id) is True
     assert request_list.check_in_list(request_id) is False
@@ -33,17 +33,17 @@ def test_request_list():
 def test_request_processor_empty(mockStR, caplog):
     caplog.setLevel(logging.DEBUG)
     request_list = bach.Bach(init_empty=True)
-    request_id = request_list.add_request_to_queue("new_org", {"body":"body"})
+    request_id = request_list.add_request_to_queue("cf", "new_org", {"body":"body"})
     request = request_list.get_request(request_id)
     # print(request)
     request_list.process_request(request, None)
     mockStR.assert_not_called()
-    assert 'There are 0 request definitions!' in caplog.text()
+    assert 'Could not find score' in caplog.text()
 
 @mock.patch('bach.send_to_rabbit', side_effect=output_to_stdout)
 def test_request_processor(mockStR):
     request_list = bach.Bach()
-    request_id = request_list.add_request_to_queue("new_org", {"body":"body"})
+    request_id = request_list.add_request_to_queue("cf", "new_org", {"body":"body"})
     request = request_list.get_request(request_id)
     print(request)
     bach.initialize_processable_requests()

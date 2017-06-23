@@ -57,11 +57,11 @@ class Bach:
     def check_in_list(self, request_id):
         return request_id in self.list
 
-    def add_request_to_queue(self, request_type, body):
+    def add_request_to_queue(self, score, rubric, body):
         """Add a request to the master queue"""
         try:
             request_id = generate_uuid(json.dumps(body))
-            self.list[request_id] = Request(request_id, request_type, body)
+            self.list[request_id] = Request(request_id, score, rubric, body)
             return request_id
         except:
             LOGGER.warning("Unexpected error: %r\n%r", sys.exc_info()[0], sys.exc_info()[1])
@@ -79,34 +79,35 @@ class Bach:
     def process_request(self, request, channel):
         """Finds the next task for the request"""
         found = False
-        LOGGER.debug("Looking for "+request.type)
-        LOGGER.debug("There are %r request definitions!", len(REQUEST_DEFINITIONS))
-        for req in REQUEST_DEFINITIONS:
-            LOGGER.debug("Will %r work?", req.name)
-            if req.name == request.type:
-                LOGGER.debug("Found the framework...checking tasks")
-                task_list = req.tasks
-                LOGGER.debug("The current state of the request is %r", request.current)
-                for task in task_list:
-                    if (task.value&request.pending) == 0: # If it has not been called
-                        if (task.req_state&request.current) == task.req_state:
-                            LOGGER.debug("Running task: "+str(task.target))
-                            request.pending += task.value
-                            task_func = eval(str(task.target))
-                            response = task_func(request)
-                            send_to_rabbit(channel,
-                                           response['routing_key'],
-                                           task.value,
-                                           response['body'],
-                                           response['reply_to'])
-                            found = True
-                            LOGGER.debug("Task complete")
-                if not found:
-                    LOGGER.debug("No tasks to preform...")
-                if request.pending == request.current:
-                    REQUEST_LIST.remove_request_from_queue(request.id)
-                return
-        LOGGER.debug("Could not find definition for "+request.type)
+        LOGGER.debug("Looking for "+request.rubric)
+        if request.score in self.scores:
+            for req in self.scores[request.score]:
+                LOGGER.debug("Will %r work?", req.name)
+                if req.name == request.rubric:
+                    LOGGER.debug("Found the framework...checking tasks")
+                    task_list = req.tasks
+                    LOGGER.debug("The current state of the request is %r", request.current)
+                    for task in task_list:
+                        if (task.value&request.pending) == 0: # If it has not been called
+                            if (task.req_state&request.current) == task.req_state:
+                                LOGGER.debug("Running task: "+str(task.target))
+                                request.pending += task.value
+                                task_func = eval(str(task.target))
+                                response = task_func(request)
+                                send_to_rabbit(channel,
+                                               response['routing_key'],
+                                               task.value,
+                                               response['body'],
+                                               response['reply_to'])
+                                found = True
+                                LOGGER.debug("Task complete")
+                    if not found:
+                        LOGGER.debug("No tasks to preform...")
+                    if request.pending == request.current:
+                        REQUEST_LIST.remove_request_from_queue(request.id)
+                    return
+            LOGGER.debug("Could not find definition for "+request.rubric)
+        LOGGER.debug("Could not find score for "+request.rubric)
     def router(self, channel, method, properties, body):
         """Callback function for incoming messages. Routes the message to the correct function."""
         LOGGER.info(" [x] %r:%r", method.routing_key, body)
@@ -144,7 +145,7 @@ class Bach:
                         # print(body)
                 elif checker[0] in self.scores:
                     if checker[1] in self.scores[checker[0]]:
-                        request_id = self.add_request_to_queue(checker[1], body)
+                        request_id = self.add_request_to_queue(checker[0], checker[1], body)
                         LOGGER.info("Generating %r request. ID: %r", checker[1], request_id)
                         send_to_rabbit(channel, "logger.info", -1,
                                        json.dumps({'key':'new_request_id', 'value':request_id}))
@@ -163,9 +164,10 @@ class Bach:
 
 class Request:
     """Defines the format of a request"""
-    def __init__(self, r_id, type_name, body, pending=0, current=0, paused=False, retry_count=0):
+    def __init__(self, r_id, score, rubric, body, pending=0, current=0, paused=False, retry_count=0):
         self.id = r_id
-        self.type = str(type_name)
+        self.score = str(score)
+        self.rubric = str(rubric)
         self.pending = int(pending)
         self.current = int(current)
         self.paused = paused
@@ -173,12 +175,12 @@ class Request:
         self.body = body
     def __str__(self):
         return "{{ID:{0}, Type:{1}, Current_state:{2}, Pending_state:{3}, Retries:{4}, Paused:{5}" \
-               ", Contents:{6}}}".format(self.id, self.type,
-                                        self.current, self.pending,
-                                        self.retry_count, self.paused, self.body)
+               ", Contents:{6}}}".format(self.id, self.rubric,
+                                         self.current, self.pending,
+                                         self.retry_count, self.paused, self.body)
     def __repr__(self):
         return "{{ID:{0}, Type:{1}, Current_state:{2}, Pending_state:{3}, Retries:{4}, Paused:{5}" \
-               ", Contents:{6}}}".format(self.id, self.type,
+               ", Contents:{6}}}".format(self.id, self.rubric,
                                         self.current, self.pending,
                                         self.retry_count, self.paused, self.body)
 
