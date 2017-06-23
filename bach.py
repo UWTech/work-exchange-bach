@@ -16,13 +16,40 @@ import pika
 from scores import *
 
 #################################
+# Start logging! #
+LOGGER = logging.getLogger('bach')
+LOGGER.addHandler(logging.StreamHandler(sys.stderr))
+LOG_LEVEL = str(os.getenv('LOG_LEVEL', 'WARNING')).upper()
+print("Setting log level to {0}".format(LOG_LEVEL))
+if LOG_LEVEL == 'DEBUG':
+    LOGGER.setLevel(10)
+elif LOG_LEVEL == 'INFO':
+    LOGGER.setLevel(20)
+elif LOG_LEVEL == 'WARNING':
+    LOGGER.setLevel(30)
+elif LOG_LEVEL == 'ERROR':
+    LOGGER.setLevel(40)
+elif LOG_LEVEL == 'CRITICAL':
+    LOGGER.setLevel(50)
+#################################
 ##### Orchestration Classes #####
 #################################
 
-class R_List:
+class Bach:
     """Defines the construct for a list of requests"""
-    def __init__(self):
+    def __init__(self, init_empty=False):
+        """Loads a Request List object"""
         self.list = {}
+        self.definitions = []
+        self.scores = {}
+        if not init_empty:
+            LOGGER.info("Initializing requests!")
+            files = os.listdir('scores')
+            for file_name in files:
+                name = file_name.split('.')
+                if len(name) > 1 and 'py' in name[1] and 'init' not in name[0]:
+                    func = eval(name[0]+'.load_rubrics')
+                    self.scores[name[0]]=func()
 
     def get_request(self, request_id):
         return self.list[request_id]
@@ -49,6 +76,87 @@ class R_List:
         except KeyError:
             LOGGER.warning('Request %r not found!', request_id)
             return False
+
+    def router(self, channel, method, properties, body):
+        """Callback function for incoming messages. Routes the message to the correct function."""
+        LOGGER.info(" [x] %r:%r", method.routing_key, body)
+        try:
+            body = json.loads(str(body, "utf-8"))
+        except:
+            LOGGER.debug("Unable to process %r", body)
+            send_to_rabbit(channel, "logger.info", -1,
+                           json.dumps({'key':'Parsing failed', 'value':method.routing_key}))
+        # ch.basic_ack(delivery_tag = method.delivery_tag)
+        else:
+            routing_key = method.routing_key.split('.', 1)
+            new_key = routing_key[1]
+            checker = new_key.split('.')
+            LOGGER.debug("Can we process %r?", checker[0])
+            try:
+                if checker[0] == 'id':
+                    LOGGER.debug("We need to keep processing request: %r", checker[1])
+                    if REQUEST_LIST.check_in_list(checker[1]):
+                        # print("Request %r came through!" % checker[1])
+                        curr_request = REQUEST_LIST.get_request(checker[1])
+                        if len(checker) >= 3:
+                            # This request got an error!
+                            if 'error' in checker[2]:
+                                LOGGER.info("Request %r got an error!!", checker[1])
+                                REQUEST_LIST.remove_request_from_queue(curr_request.id)
+                        else:
+                            LOGGER.debug("We have the request, adding %r to the state",
+                                         properties.correlation_id)
+                            curr_request.current += int(properties.correlation_id)
+                            LOGGER.debug("Assigning %r to key %r", body['value'], body['key'])
+                            curr_request.body[body['key']] = body['value']
+                            LOGGER.info("Sending request off to process...")
+                            process_request(curr_request, channel)
+                        # print(body)
+                elif 'cf' in checker[0]:
+                    if 'new_org' in checker[1]:
+                        request_id = REQUEST_LIST.add_request_to_queue("new_org", body)
+                        LOGGER.info("Making new request. ID: %r", request_id)
+                        # new_req = Request(request_id, "new_org")
+                        # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
+                        send_to_rabbit(channel, "logger.info", -1,
+                                       json.dumps({'key':'new_request_id', 'value':request_id}))
+                        LOGGER.info("Sending request off to process...")
+                        process_request(REQUEST_LIST.get_request(request_id), channel)
+                    elif 'build_org_from_cf' in checker[1]:
+                        request_id = REQUEST_LIST.add_request_to_queue("build_org_from_cf", body)
+                        LOGGER.info("Making new request. ID: %r", request_id)
+                        # new_req = Request(request_id, "build_org_from_cf")
+                        # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
+                        send_to_rabbit(channel, "logger.info", -1,
+                                    json.dumps({'key':'new_request_id', 'value':request_id}))
+                        LOGGER.info("Sending request off to process...")
+                        process_request(REQUEST_LIST.get_request(request_id), channel)
+                    elif 'delete_org' in checker[1]:
+                        request_id = REQUEST_LIST.add_request_to_queue("delete_org", body)
+                        LOGGER.info("Making new request. ID: %r", request_id)
+                        # new_req = Request(request_id, "delete_org")
+                        # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
+                        send_to_rabbit(channel, "logger.info", -1,
+                                    json.dumps({'key':'new_request_id', 'value':request_id}))
+                        LOGGER.info("Sending request off to process...")
+                        process_request(REQUEST_LIST.get_request(request_id), channel)
+                elif 'servers' in checker[0]:
+                    if 'new_vms' in checker[1]:
+                        request_id = REQUEST_LIST.add_request_to_queue("new_vms", body)
+                        LOGGER.info("Making new request. ID: %r", request_id)
+                        # new_req = Request(request_id, "new_vms")
+                        # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
+                        send_to_rabbit(channel, "logger.info", -1,
+                                    json.dumps({'key':'new_request_id', 'value':request_id}))
+                        LOGGER.info("Sending request off to process...")
+                        process_request(REQUEST_LIST.get_request(request_id), channel)
+
+            except:
+                LOGGER.info("Unexpected error: %r", sys.exc_info()[0])
+                response = "{0}".format(sys.exc_info()[0]), 500
+        finally:
+            LOGGER.debug("Sending ack!")
+            channel.basic_ack(delivery_tag=method.delivery_tag)
 
 class Request:
     """Defines the format of a request"""
@@ -102,27 +210,13 @@ class Task:
 ###########################
 ##### Global Variabls #####
 ###########################
-REQUEST_LIST = R_List() # Current list of requests
+REQUEST_LIST = Bach() # Current list of requests
 REQUEST_DEFINITIONS = [] # List of requests that can be processed
 SCORES = []
 RMQ_SERVICE = ""
 SERVICE = {}
 AMQP_URL = ""
 EXCHANGE = ""
-LOGGER = logging.getLogger('bach')
-LOGGER.addHandler(logging.StreamHandler(sys.stderr))
-LOG_LEVEL = str(os.getenv('LOG_LEVEL', 'WARNING')).upper()
-print("Setting log level to {0}".format(LOG_LEVEL))
-if LOG_LEVEL == 'DEBUG':
-    LOGGER.setLevel(10)
-elif LOG_LEVEL == 'INFO':
-    LOGGER.setLevel(20)
-elif LOG_LEVEL == 'WARNING':
-    LOGGER.setLevel(30)
-elif LOG_LEVEL == 'ERROR':
-    LOGGER.setLevel(40)
-elif LOG_LEVEL == 'CRITICAL':
-    LOGGER.setLevel(50)
 
 def generate_uuid(input_string):
     """Generate a uuid based on the hash of the input and a random python uuid"""
@@ -188,89 +282,6 @@ def process_request(request, channel):
             return
     LOGGER.debug("Could not find definition for "+request.type)
 
-def router(channel, method, properties, body):
-    """Callback function for incoming messages. Routes the message to the correct function."""
-    LOGGER.info(" [x] %r:%r", method.routing_key, body)
-    try:
-        body = json.loads(str(body, "utf-8"))
-    except:
-        LOGGER.debug("Unable to process %r", body)
-        send_to_rabbit(channel,
-                       "logger.info",
-                       -1,
-                       json.dumps({'key':'Parsing failed', 'value':method.routing_key}))
-    # ch.basic_ack(delivery_tag = method.delivery_tag)
-    else:
-        routing_key = method.routing_key.split('.', 1)
-        new_key = routing_key[1]
-        checker = new_key.split('.')
-        LOGGER.debug("Can we process %r?", checker[0])
-        try:
-            if checker[0] == 'id':
-                LOGGER.debug("We need to keep processing request: %r", checker[1])
-                if REQUEST_LIST.check_in_list(checker[1]):
-                    # print("Request %r came through!" % checker[1])
-                    curr_request = REQUEST_LIST.get_request(checker[1])
-                    if len(checker) >= 3:
-                        # This request got an error!
-                        if 'error' in checker[2]:
-                            LOGGER.info("Request %r got an error!!", checker[1])
-                            REQUEST_LIST.remove_request_from_queue(curr_request.id)
-                    else:
-                        LOGGER.debug("We have the request, adding %r to the state",
-                                     properties.correlation_id)
-                        curr_request.current += int(properties.correlation_id)
-                        LOGGER.debug("Assigning %r to key %r", body['value'], body['key'])
-                        curr_request.body[body['key']] = body['value']
-                        LOGGER.info("Sending request off to process...")
-                        process_request(curr_request, channel)
-                    # print(body)
-            elif 'cf' in checker[0]:
-                if 'new_org' in checker[1]:
-                    request_id = REQUEST_LIST.add_request_to_queue("new_org", body)
-                    LOGGER.info("Making new request. ID: %r", request_id)
-                    # new_req = Request(request_id, "new_org")
-                    # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
-                    send_to_rabbit(channel, "logger.info", -1,
-                                   json.dumps({'key':'new_request_id', 'value':request_id}))
-                    LOGGER.info("Sending request off to process...")
-                    process_request(REQUEST_LIST.get_request(request_id), channel)
-                elif 'build_org_from_cf' in checker[1]:
-                    request_id = REQUEST_LIST.add_request_to_queue("build_org_from_cf", body)
-                    LOGGER.info("Making new request. ID: %r", request_id)
-                    # new_req = Request(request_id, "build_org_from_cf")
-                    # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
-                    send_to_rabbit(channel, "logger.info", -1,
-                                   json.dumps({'key':'new_request_id', 'value':request_id}))
-                    LOGGER.info("Sending request off to process...")
-                    process_request(REQUEST_LIST.get_request(request_id), channel)
-                elif 'delete_org' in checker[1]:
-                    request_id = REQUEST_LIST.add_request_to_queue("delete_org", body)
-                    LOGGER.info("Making new request. ID: %r", request_id)
-                    # new_req = Request(request_id, "delete_org")
-                    # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
-                    send_to_rabbit(channel, "logger.info", -1,
-                                   json.dumps({'key':'new_request_id', 'value':request_id}))
-                    LOGGER.info("Sending request off to process...")
-                    process_request(REQUEST_LIST.get_request(request_id), channel)
-            elif 'vm' in checker[0]:
-                if 'new_vms' in checker[1]:
-                    request_id = REQUEST_LIST.add_request_to_queue("new_vms", body)
-                    LOGGER.info("Making new request. ID: %r", request_id)
-                    # new_req = Request(request_id, "new_vms")
-                    # REQUEST_LIST[request_id] = {"def":new_req, "body":body}
-                    send_to_rabbit(channel, "logger.info", -1,
-                                   json.dumps({'key':'new_request_id', 'value':request_id}))
-                    LOGGER.info("Sending request off to process...")
-                    process_request(REQUEST_LIST.get_request(request_id), channel)
-
-        except:
-            LOGGER.info("Unexpected error: %r", sys.exc_info()[0])
-            response = "{0}".format(sys.exc_info()[0]), 500
-    finally:
-        LOGGER.debug("Sending ack!")
-        channel.basic_ack(delivery_tag=method.delivery_tag)
-
 def main():
     """Setup the connection to the work exchange queue"""
     # Setup queue comm
@@ -282,10 +293,10 @@ def main():
     queue_name = result.method.queue
     binding_key = "request.#"
     channel.queue_bind(exchange=EXCHANGE, queue=queue_name, routing_key=binding_key)
-    initialize_processable_requests()
+    # initialize_processable_requests()
     LOGGER.info(' [*] Waiting for logs. To exit press CTRL+C')
     channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(router, queue=queue_name)
+    channel.basic_consume(REQUEST_LIST.router, queue=queue_name)
     channel.start_consuming()
 
 if __name__ == "__main__":
