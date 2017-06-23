@@ -36,7 +36,7 @@ def test_request_processor_empty(mockStR, caplog):
     request_id = request_list.add_request_to_queue("new_org", {"body":"body"})
     request = request_list.get_request(request_id)
     # print(request)
-    bach.process_request(request, None)
+    request_list.process_request(request, None)
     mockStR.assert_not_called()
     assert 'There are 0 request definitions!' in caplog.text()
 
@@ -47,7 +47,7 @@ def test_request_processor(mockStR):
     request = request_list.get_request(request_id)
     print(request)
     bach.initialize_processable_requests()
-    bach.process_request(request, None)
+    request_list.process_request(request, None)
     mockStR.assert_called_once()
     mockStR.assert_called_with(None,
                                "request.id.{0}.error".format(request_id),

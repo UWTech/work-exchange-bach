@@ -45,8 +45,6 @@
 # the bit value
 
 import os
-import json
-import pika
 
 GITHUB_ADMIN_TEAM = int(os.getenv('GITHUB_ADMIN_TEAM_ID', '-1'))
 EXCHANGE = os.getenv('EXCHANGE_QUEUE_NAME', 'work_exchange')

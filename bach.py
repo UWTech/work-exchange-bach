@@ -76,7 +76,37 @@ class Bach:
         except KeyError:
             LOGGER.warning('Request %r not found!', request_id)
             return False
-
+    def process_request(self, request, channel):
+        """Finds the next task for the request"""
+        found = False
+        LOGGER.debug("Looking for "+request.type)
+        LOGGER.debug("There are %r request definitions!", len(REQUEST_DEFINITIONS))
+        for req in REQUEST_DEFINITIONS:
+            LOGGER.debug("Will %r work?", req.name)
+            if req.name == request.type:
+                LOGGER.debug("Found the framework...checking tasks")
+                task_list = req.tasks
+                LOGGER.debug("The current state of the request is %r", request.current)
+                for task in task_list:
+                    if (task.value&request.pending) == 0: # If it has not been called
+                        if (task.req_state&request.current) == task.req_state:
+                            LOGGER.debug("Running task: "+str(task.target))
+                            request.pending += task.value
+                            task_func = eval(str(task.target))
+                            response = task_func(request)
+                            send_to_rabbit(channel,
+                                           response['routing_key'],
+                                           task.value,
+                                           response['body'],
+                                           response['reply_to'])
+                            found = True
+                            LOGGER.debug("Task complete")
+                if not found:
+                    LOGGER.debug("No tasks to preform...")
+                if request.pending == request.current:
+                    REQUEST_LIST.remove_request_from_queue(request.id)
+                return
+        LOGGER.debug("Could not find definition for "+request.type)
     def router(self, channel, method, properties, body):
         """Callback function for incoming messages. Routes the message to the correct function."""
         LOGGER.info(" [x] %r:%r", method.routing_key, body)
@@ -110,7 +140,7 @@ class Bach:
                             LOGGER.debug("Assigning %r to key %r", body['value'], body['key'])
                             curr_request.body[body['key']] = body['value']
                             LOGGER.info("Sending request off to process...")
-                            process_request(curr_request, channel)
+                            self.process_request(curr_request, channel)
                         # print(body)
                 elif checker[0] in self.scores:
                     if checker[1] in self.scores[checker[0]]:
@@ -119,7 +149,11 @@ class Bach:
                         send_to_rabbit(channel, "logger.info", -1,
                                        json.dumps({'key':'new_request_id', 'value':request_id}))
                         LOGGER.info("Sending request off to process...")
-                        process_request(self.get_request(request_id), channel)
+                        self.process_request(self.get_request(request_id), channel)
+                    else:
+                        LOGGER.info("Rubric %r not found in Score %r", checker[1], checker[0])
+                else:
+                    LOGGER.info("Score %r not found", checker[0])
             except:
                 LOGGER.info("Unexpected error: %r", sys.exc_info()[0])
                 response = "{0}".format(sys.exc_info()[0]), 500
@@ -218,38 +252,6 @@ def send_to_rabbit(channel, routing_key, value, body, reply_to=None):
                               properties=pika.BasicProperties(correlation_id=str(value),
                                                               delivery_mode=2),
                               body=json.dumps(body))
-
-def process_request(request, channel):
-    """Finds the next task for the request"""
-    found = False
-    LOGGER.debug("Looking for "+request.type)
-    LOGGER.debug("There are %r request definitions!", len(REQUEST_DEFINITIONS))
-    for req in REQUEST_DEFINITIONS:
-        LOGGER.debug("Will %r work?", req.name)
-        if req.name == request.type:
-            LOGGER.debug("Found the framework...checking tasks")
-            task_list = req.tasks
-            LOGGER.debug("The current state of the request is %r", request.current)
-            for task in task_list:
-                if (task.value&request.pending) == 0: # If it has not been called
-                    if (task.req_state&request.current) == task.req_state:
-                        LOGGER.debug("Running task: "+str(task.target))
-                        request.pending += task.value
-                        task_func = eval(str(task.target))
-                        response = task_func(request)
-                        send_to_rabbit(channel,
-                                       response['routing_key'],
-                                       task.value,
-                                       response['body'],
-                                       response['reply_to'])
-                        found = True
-                        LOGGER.debug("Task complete")
-            if not found:
-                LOGGER.debug("No tasks to preform...")
-            if request.pending == request.current:
-                REQUEST_LIST.remove_request_from_queue(request.id)
-            return
-    LOGGER.debug("Could not find definition for "+request.type)
 
 def main():
     """Setup the connection to the work exchange queue"""
