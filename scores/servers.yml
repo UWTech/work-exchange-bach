@@ -1,0 +1,44 @@
+---
+score: 'servers'
+rubrics:
+  new_org:
+    validate:
+    - [org_name, str]
+    - [team_manager, str, list]
+    - [spaces, list]
+    - [app_team_github_team, int, str]
+    - [github_url, str]
+    - [app_team_manager_github_user, str]
+    task_list:
+    - name: 'generate_team_repo_url'
+      value: 1
+      required: 0
+    - name: 'generate_org_repo_url'
+      value: 2
+      required: 1
+    - name: 'build_team_repo'
+      value: 4
+      required: 2
+    - name: 'build_org_repo'
+      value: 8
+      required: 6
+    - name: 'upload_org_pipeline'
+      value: 16
+      required: 8
+    - name: 'update_cf_mgmt_repo'
+      value: 32
+      required: 16
+    - name: 'upload_cf_mgmt_pipeline'
+      value: 64
+      required: 32
+    - name: 'email_members'
+      value: 128
+      required: 64
+definitions:
+  upload_org_pipeline:
+    assign_to_key: 'org_pipeline_upload'
+    routing_key: 'fly.set_pipeline'
+    keys:
+      clone_url: [direct, org_ssl_remote_url]
+      pipeline_name: [compound, '{0}-{1}-pipeline', env_type, org_name]
+      include_git: [primitive, true]
