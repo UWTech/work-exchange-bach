@@ -46,7 +46,6 @@ def test_request_processor(mockStR):
     request_id = request_list.add_request_to_queue("cf", "new_org", {"body":"body"})
     request = request_list.get_request(request_id)
     print(request)
-    bach.initialize_processable_requests()
     request_list.process_request(request, None)
     mockStR.assert_called_once()
     mockStR.assert_called_with(None,

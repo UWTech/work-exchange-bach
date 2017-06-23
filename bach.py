@@ -104,7 +104,7 @@ class Bach:
                     if not found:
                         LOGGER.debug("No tasks to preform...")
                     if request.pending == request.current:
-                        REQUEST_LIST.remove_request_from_queue(request.id)
+                        self.remove_request_from_queue(request.id)
                     return
             LOGGER.debug("Could not find definition for "+request.rubric)
         LOGGER.debug("Could not find score for "+request.rubric)
@@ -126,14 +126,14 @@ class Bach:
             try:
                 if checker[0] == 'id':
                     LOGGER.debug("We need to keep processing request: %r", checker[1])
-                    if REQUEST_LIST.check_in_list(checker[1]):
+                    if self.check_in_list(checker[1]):
                         # print("Request %r came through!" % checker[1])
-                        curr_request = REQUEST_LIST.get_request(checker[1])
+                        curr_request = self.get_request(checker[1])
                         if len(checker) >= 3:
                             # This request got an error!
                             if 'error' in checker[2]:
                                 LOGGER.info("Request %r got an error!!", checker[1])
-                                REQUEST_LIST.remove_request_from_queue(curr_request.id)
+                                self.remove_request_from_queue(curr_request.id)
                         else:
                             LOGGER.debug("We have the request, adding %r to the state",
                                          properties.correlation_id)
@@ -215,9 +215,6 @@ class Task:
 ###########################
 ##### Global Variabls #####
 ###########################
-REQUEST_LIST = Bach() # Current list of requests
-REQUEST_DEFINITIONS = [] # List of requests that can be processed
-SCORES = []
 RMQ_SERVICE = ""
 SERVICE = {}
 AMQP_URL = ""
@@ -227,17 +224,6 @@ def generate_uuid(input_string):
     """Generate a uuid based on the hash of the input and a random python uuid"""
     input_md = hashlib.md5(input_string.encode())
     return hashlib.sha256(input_md.digest()+uuid.uuid4().bytes).hexdigest()
-
-def initialize_processable_requests():
-    """Loads the rubrics from the scores"""
-    LOGGER.info("Initializing requests!")
-    files = os.listdir('scores')
-    for file_name in files:
-        name = file_name.split('.')
-        if len(name) > 1 and 'py' in name[1] and 'init' not in name[0]:
-            SCORES.append(name[0])
-            func = eval(name[0]+'.load_rubrics')
-            REQUEST_DEFINITIONS.extend(func())
 
 def send_to_rabbit(channel, routing_key, value, body, reply_to=None):
     """Generic function for sending messages into rabbitmq"""
@@ -277,4 +263,5 @@ if __name__ == "__main__":
     SERVICE = json.loads(os.getenv('VCAP_SERVICES'))[RMQ_SERVICE][0]
     AMQP_URL = SERVICE['credentials']['protocols']['amqp']['uri']
     EXCHANGE = os.getenv('EXCHANGE_QUEUE_NAME', 'work_exchange')
+    REQUEST_LIST = Bach()
     main()
