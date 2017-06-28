@@ -1,0 +1,38 @@
+---
+score: 'servers'
+rubrics:
+  - name: new_vms
+    validate:
+    - [datacenter, str]
+    - [env_type, str]
+    - [quantity, int]
+    - [vm_type, str]
+    - [respond_to, str]
+    - [business_service, str]
+    - [vm_size, str]
+    task_list:
+    - name: 'retrieve_vm_info'
+      value: 1
+      required: 0
+    - name: 'send_vm_info'
+      value: 2
+      required: 1
+definitions:
+  retrieve_vm_info:
+    assign_to_key: 'login_information'
+    routing_key: 'vms.retrieve_vms'
+    keys:
+      datacenter: [direct, datacenter]
+      env_type: [direct, env_type]
+      quantity: [direct, quantity]
+      vm_type: [direct, vm_type]
+      respond_to: [direct, respond_to]
+      business_service: [direct, business_service]
+      vm_size: [direct, vm_size]
+  send_vm_info:
+    assign_to_key: 'org_pipeline_upload'
+    routing_key: 'fly.set_pipeline'
+    keys:
+      clone_url: [direct, org_ssl_remote_url]
+      pipeline_name: [compound, '{0}-{1}-pipeline', env_type, org_name]
+      include_git: [primitive, true]

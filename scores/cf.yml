@@ -1,0 +1,205 @@
+---
+score: 'cf'
+rubrics:
+  - name: new_org
+    validate:
+    - [org_name, str]
+    - [team_manager, str, list]
+    - [spaces, list]
+    - [app_team_github_team, int, str]
+    - [github_url, str]
+    - [app_team_manager_github_user, str]
+    - [env_type, str]
+    - [control_repo_url, str]
+    - [compiler_repo_url, str]
+    - [github_org, str]
+    task_list:
+    - name: 'generate_team_repo_url'
+      value: 1
+      required: 0
+    - name: 'generate_org_repo_url'
+      value: 2
+      required: 1
+    - name: 'build_team_repo'
+      value: 4
+      required: 2
+    - name: 'build_org_repo'
+      value: 8
+      required: 6
+    - name: 'upload_org_pipeline'
+      value: 16
+      required: 8
+    - name: 'update_cf_mgmt_repo'
+      value: 32
+      required: 16
+    - name: 'upload_cf_mgmt_pipeline'
+      value: 64
+      required: 32
+    - name: 'email_members'
+      value: 128
+      required: 64
+  - name: build_org_from_cf
+    validate:
+    - [org_name, str]
+    - [team_manager, str, list]
+    - [app_team_github_team, int, str]
+    - [github_url, str]
+    - [app_team_manager_github_user, str]
+    - [foundation, str]
+    task_list:
+    - name: generate_team_repo_url
+      value: 1
+      required: 0
+    - name: generate_org_repo_url
+      value: 2
+      required: 1
+    - name: build_from_cf_org
+      value: 4
+      required: 2
+    - name: build_team_repo
+      value: 8
+      required: 6
+    - name: upload_org_pipeline
+      value: 16
+      required: 8
+    - name: update_cf_mgmt_repo
+      value: 32
+      required: 16
+    - name: upload_cf_mgmt_pipeline
+      value: 64
+      required: 32
+    - name: email_members
+      value: 128
+      required: 64
+  - name: delete_org
+    validate:
+    - [org_name, str]
+    - [app_team_github_team, int, str]
+    - [github_url, str]
+    - [app_team_manager_github_user, str]
+    task_list:
+    - name: 'validate_delete_org_request'
+      value: 1
+      required: 0
+    - name: 'remove_org_from_pipeline_repo'
+      value: 2
+      required: 1
+    - name: 'remove_org_from_pipeline'
+      value: 4
+      required: 2
+    - name: 'remove_org_from_github'
+      value: 8
+      required: 4
+    - name: 'remove_team_from_github'
+      value: 16
+      required: 8
+definitions:
+  generate_team_repo_url:
+    assign_to_key: team_ssl_remote_url
+    routing_key: github.generate_repo_url
+    keys:
+      github_url: [direct, github_url]
+      name: [compound, '{0}-team', org_name]
+      github_org: [direct, github_org]
+      # teams = []
+      # team = {
+      #     "id":input_stuff.body['app_team_github_team'],
+      #     "permission":"pull"
+      # }
+      # teams.append(team)
+      # if GITHUB_ADMIN_TEAM != '-1':
+      #     teams.append({"id":GITHUB_ADMIN_TEAM, "permission":"admin"})
+      # body['teams'] = teams
+      # body['collabs'] = [{
+      #     'name':input_stuff.body['app_team_manager_github_user'],
+      #     'permission':'push'}]
+  generate_org_repo_url:
+    assign_to_key: org_ssl_remote_url
+    routing_key: github.generate_repo_url
+    keys:
+      github_url: [direct, github_url]
+      name: [compound, '{0}-org', org_name]
+      github_org: [direct, github_org]
+      # teams = []
+      # team = {
+      #     "id":input_stuff.body['app_team_github_team'],
+      #     "permission":"pull"
+      # }
+      # teams.append(team)
+      # if GITHUB_ADMIN_TEAM != '-1':
+      #     teams.append({"id":GITHUB_ADMIN_TEAM, "permission":"admin"})
+      # body['teams'] = teams
+  build_team_repo:
+    assign_to_key: 'team_repo_complete'
+    routing_key: 'template_repos.cf_team_repo'
+    keys:
+      github_url: [direct, github_url]
+      ssl_url: [direct, team_ssl_remote_url]
+      org_name: [direct, org_name]
+      team_manager: [direct, team_manager]
+      spaces: [direct, spaces]
+  build_org_repo:
+    assign_to_key: 'org_repo_complete'
+    routing_key: 'template_repos.cf_org_repo'
+    keys:
+      github_url: [direct, github_url]
+      team_ssl_url: [direct, team_ssl_remote_url]
+      org_ssl_url: [direct, org_ssl_remote_url]
+      org_name: [direct, org_name]
+      spaces: [direct, spaces]
+  upload_org_pipeline:
+    assign_to_key: 'org_pipeline_upload'
+    routing_key: 'fly.set_pipeline'
+    keys:
+      clone_url: [direct, org_ssl_remote_url]
+      pipeline_name: [compound, '{0}-{1}-pipeline', env_type, org_name]
+      include_git: [primitive, true]
+  update_cf_mgmt_repo:
+    assign_to_key: 'cf_mgmt_update'
+    routing_key: 'template_repos.add_submodule'
+    keys:
+      org_name: [direct, org_name]
+      org_ssl_url: [direct, org_ssl_remote_url]
+      github_url: [direct, github_url]
+      control_repo_url: [direct, control_repo_url]
+      compiler_repo_url: [direct, compiler_repo_url]
+  upload_cf_mgmt_pipeline:
+    assign_to_key: 'cf_mgmt_pipeline_upload'
+    routing_key: 'fly.set_pipeline'
+    keys:
+      clone_url: [direct, compiler_repo_url]
+      pipeline_name: [compound, '{0}-compiler', env_type]
+      include_git: [primitive, true]
+  email_members:
+    assign_to_key: 'cf_org_complete_email'
+    routing_key: 'email.send_cf_org_mail_template'
+    keys:
+      org_name: [direct, org_name]
+      team_manager: [direct, team_manager]
+      spaces: [direct, spaces]
+      team_ssl_url: [direct, team_ssl_remote_url]
+      org_ssl_url: [direct, org_ssl_remote_url]
+      env_type: [direct, env_type]
+  remove_org_from_pipeline_repo:
+    assign_to_key: 'remove_org_from_pipeline_repo'
+    routing_key: 'template_repos.remove_submodule'
+    keys:
+      control_repo_url: [direct, control_repo_url]
+      compiler_repo_url: [direct, compiler_repo_url]
+      submodule: [direct, org_name]
+  remove_org_from_pipeline:
+    assign_to_key: 'remove_org_from_pipeline'
+    routing_key: 'fly.set_pipeline'
+    keys:
+      clone_url: [direct, compiler_repo_url]
+      pipeline_name: [compound, '{0}-compiler', 'env_type']
+      include_git: [primitive, true]
+  build_from_cf_org:
+    assign_to_key: 'spaces'
+    routing_key: 'template_repos.build_from_cf_org'
+    keys:
+      github_url: [direct, github_url]
+      team_ssl_url: [direct, team_ssl_remote_url]
+      org_ssl_url: [direct, org_ssl_remote_url]
+      org_name: [direct, org_name]
+      foundation: [direct, foundation]
