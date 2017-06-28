@@ -5,18 +5,19 @@ requests. It pulls in 'scores' as extra modules to call for different rubrics.
 # Import base modules
 import os
 import sys
+from pydoc import locate
 import json
 import uuid
-import random
 import logging
 import hashlib
 
 # Import dependancies
 import pika
-from scores import *
+import yaml
 
-#################################
-# Start logging! #
+##################################
+######### Start logging! #########
+##################################
 LOGGER = logging.getLogger('bach')
 LOGGER.addHandler(logging.StreamHandler(sys.stderr))
 LOG_LEVEL = str(os.getenv('LOG_LEVEL', 'WARNING')).upper()
@@ -40,29 +41,68 @@ class Bach:
     def __init__(self, init_empty=False):
         """Loads a Request List object"""
         self.list = {}
-        self.definitions = []
+        self.definitions = {}
         self.scores = {}
         if not init_empty:
             LOGGER.info("Initializing requests!")
-            files = os.listdir('scores')
-            for file_name in files:
-                name = file_name.split('.')
-                if len(name) > 1 and 'py' in name[1] and 'init' not in name[0]:
-                    func = eval(name[0]+'.load_rubrics')
-                    self.scores[name[0]]=func()
-
+        files = os.listdir('scores')
+        for file_name in files:
+            name = file_name.split('.')
+            if len(name) > 1 and 'yml' in name[1]:
+                file_input = None
+                with open('scores/{0}'.format(file_name)) as file:
+                    file_input = yaml.load(file)
+                score_name = file_input['score']
+                rubrics = {}
+                for rubr in file_input['rubrics']:
+                    rubr_tasks = []
+                    for task in rubr['task_list']:
+                        rubr_tasks.append(Task(task['name'], task['value'], task['required']))
+                    rubrics[rubr['name']] = Rubric(rubr['name'], rubr_tasks, rubr['validate'])
+                self.scores[score_name] = rubrics
+                for key, value in file_input['definitions'].items():
+                    if key not in self.definitions:
+                        self.definitions[key] = value
+    def validate(self, keys, ring):
+        """Validates that all of the keys are on the ring"""
+        LOGGER.debug("Validating input...")
+        for key in keys:
+            try:
+                i = 1
+                matching = False
+                while i < len(key) and not matching:
+                    LOGGER.debug("%r", key[i])
+                    if isinstance(ring[key[0]], locate(key[i])):
+                        matching = True
+                    i += 1
+                if not matching:
+                    return str(key[0])+" is not the correct type. Need: "+str(key[i-1]), 400
+            except KeyError:
+                return "Missing required key: "+key[0], 400
+        return "All good", 200
     def get_request(self, request_id):
-        return self.list[request_id]
+        """Attempt to retrieve request"""
+        try:
+            return self.list[request_id]
+        except KeyError:
+            return 404
 
     def check_in_list(self, request_id):
+        """Check if request is in list"""
         return request_id in self.list
 
     def add_request_to_queue(self, score, rubric, body):
         """Add a request to the master queue"""
         try:
             request_id = generate_uuid(json.dumps(body))
-            self.list[request_id] = Request(request_id, score, rubric, body)
-            return request_id
+            if self.validate(self.scores[score][rubric].validation_keys, body)[1] == 200:
+                self.list[request_id] = Request(request_id, score, rubric, body)
+                return request_id
+            LOGGER.warning("Invalid request")
+            return False
+        except KeyError:
+            LOGGER.ERROR("No valid score by name: %r", score)
+            return False
         except:
             LOGGER.warning("Unexpected error: %r\n%r", sys.exc_info()[0], sys.exc_info()[1])
             return False
@@ -76,29 +116,48 @@ class Bach:
         except KeyError:
             LOGGER.warning('Request %r not found!', request_id)
             return False
+
     def process_request(self, request, channel):
         """Finds the next task for the request"""
         found = False
         LOGGER.debug("Looking for "+request.rubric)
         if request.score in self.scores:
             for req in self.scores[request.score]:
-                LOGGER.debug("Will %r work?", req.name)
-                if req.name == request.rubric:
+                LOGGER.debug("Will %r work?", req)
+                if req == request.rubric:
                     LOGGER.debug("Found the framework...checking tasks")
-                    task_list = req.tasks
+                    task_list = self.scores[request.score][request.rubric].tasks
                     LOGGER.debug("The current state of the request is %r", request.current)
                     for task in task_list:
                         if (task.value&request.pending) == 0: # If it has not been called
                             if (task.req_state&request.current) == task.req_state:
                                 LOGGER.debug("Running task: "+str(task.target))
                                 request.pending += task.value
-                                task_func = eval(str(task.target))
-                                response = task_func(request)
+                                # task_func = eval(str(task.target))
+                                # response = task_func(request)
+                                task_def = self.definitions[task.target]
+                                routing_key = task_def['routing_key']
+                                packet = {}
+                                packet['assign_to_key'] = task_def['assign_to_key']
+                                for key, value_list in task_def['keys'].items():
+                                    if value_list[0] not in ['primitive', 'direct', 'compound']:
+                                        # TODO write error check for invalid format
+                                        LOGGER.error("%r's value list is invalid format", key)
+                                    if value_list[0] == 'primitive':
+                                        packet[key] = value_list[1]
+                                    elif value_list[0] == 'direct':
+                                        packet[key] = request.body[value_list[1]]
+                                    elif value_list[0] == 'compound':
+                                        body_vars = []
+                                        for value in value_list[2:len(value_list)]:
+                                            body_vars.append(request.body[value])
+                                        packet[key] = value_list[1].format(*body_vars)
+                                LOGGER.debug("Sending %r", packet)
                                 send_to_rabbit(channel,
-                                               response['routing_key'],
+                                               routing_key,
                                                task.value,
-                                               response['body'],
-                                               response['reply_to'])
+                                               packet,
+                                               'request.id.{0}'.format(request.id))
                                 found = True
                                 LOGGER.debug("Task complete")
                     if not found:
@@ -164,7 +223,8 @@ class Bach:
 
 class Request:
     """Defines the format of a request"""
-    def __init__(self, r_id, score, rubric, body, pending=0, current=0, paused=False, retry_count=0):
+    def __init__(self, r_id, score, rubric, body, pending=0, current=0, paused=False,
+                 retry_count=0):
         self.id = r_id
         self.score = str(score)
         self.rubric = str(rubric)
@@ -181,18 +241,21 @@ class Request:
     def __repr__(self):
         return "{{ID:{0}, Type:{1}, Current_state:{2}, Pending_state:{3}, Retries:{4}, Paused:{5}" \
                ", Contents:{6}}}".format(self.id, self.rubric,
-                                        self.current, self.pending,
-                                        self.retry_count, self.paused, self.body)
+                                         self.current, self.pending,
+                                         self.retry_count, self.paused, self.body)
 
 class Rubric:
     """Defines the format of a Rubric. A rubric tells Bach what to do for a request."""
-    def __init__(self, name, tasks):
+    def __init__(self, name, tasks, validation_keys):
         self.name = name
         self.tasks = tasks
+        self.validation_keys = validation_keys
     def __str__(self):
-        return "(Name:{0}, Tasks:{1})".format(self.name, self.tasks)
+        return "(Name:{0}, Tasks:{1}, Validation Keys:{2})" \
+               "".format(self.name, self.tasks, self.validation_keys)
     def __repr__(self):
-        return "(Name:{0}, Tasks:{1})".format(self.name, self.tasks)
+        return "(Name:{0}, Tasks:{1}, Validation Keys:{2})" \
+               "".format(self.name, self.tasks, self.validation_keys)
 
 class Task:
     """
@@ -255,6 +318,7 @@ def main():
     # initialize_processable_requests()
     LOGGER.info(' [*] Waiting for logs. To exit press CTRL+C')
     channel.basic_qos(prefetch_count=1)
+    REQUEST_LIST = Bach()
     channel.basic_consume(REQUEST_LIST.router, queue=queue_name)
     channel.start_consuming()
 

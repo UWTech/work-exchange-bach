@@ -9,6 +9,10 @@ rubrics:
     - [app_team_github_team, int, str]
     - [github_url, str]
     - [app_team_manager_github_user, str]
+    - [env_type, str]
+    - [control_repo_url, str]
+    - [compiler_repo_url, str]
+    - [github_org, str]
     task_list:
     - name: 'generate_team_repo_url'
       value: 1
@@ -164,7 +168,7 @@ definitions:
     routing_key: 'fly.set_pipeline'
     keys:
       clone_url: [direct, compiler_repo_url]
-      pipeline_name: [direct, env_type-compiler]
+      pipeline_name: [compound, '{0}-compiler', env_type]
       include_git: [primitive, true]
   email_members:
     assign_to_key: 'cf_org_complete_email'
@@ -175,6 +179,7 @@ definitions:
       spaces: [direct, spaces]
       team_ssl_url: [direct, team_ssl_remote_url]
       org_ssl_url: [direct, org_ssl_remote_url]
+      env_type: [direct, env_type]
   remove_org_from_pipeline_repo:
     assign_to_key: 'remove_org_from_pipeline_repo'
     routing_key: 'template_repos.remove_submodule'

@@ -4,7 +4,7 @@ applications:
   instances: 1
   no-route: true
   health-check-type: process
-  memory: 1G
+  memory: 512M
   buildpack: https://github.com/cloudfoundry/python-buildpack#v1.5.17
   command: python bach.py
   services:
@@ -12,5 +12,4 @@ applications:
   env:
     # required variables
     RMQ_SERVICE: p-rabbitmq
-    GITHUB_ADMIN_TEAM_ID: 33
     VERIFY: '/etc/ssl/certs'

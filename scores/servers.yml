@@ -1,41 +1,35 @@
 ---
 score: 'servers'
 rubrics:
-  new_org:
+  - name: new_vms
     validate:
-    - [org_name, str]
-    - [team_manager, str, list]
-    - [spaces, list]
-    - [app_team_github_team, int, str]
-    - [github_url, str]
-    - [app_team_manager_github_user, str]
+    - [datacenter, str]
+    - [env_type, str]
+    - [quantity, int]
+    - [vm_type, str]
+    - [respond_to, str]
+    - [business_service, str]
+    - [vm_size, str]
     task_list:
-    - name: 'generate_team_repo_url'
+    - name: 'retrieve_vm_info'
       value: 1
       required: 0
-    - name: 'generate_org_repo_url'
+    - name: 'send_vm_info'
       value: 2
       required: 1
-    - name: 'build_team_repo'
-      value: 4
-      required: 2
-    - name: 'build_org_repo'
-      value: 8
-      required: 6
-    - name: 'upload_org_pipeline'
-      value: 16
-      required: 8
-    - name: 'update_cf_mgmt_repo'
-      value: 32
-      required: 16
-    - name: 'upload_cf_mgmt_pipeline'
-      value: 64
-      required: 32
-    - name: 'email_members'
-      value: 128
-      required: 64
 definitions:
-  upload_org_pipeline:
+  retrieve_vm_info:
+    assign_to_key: 'login_information'
+    routing_key: 'vms.retrieve_vms'
+    keys:
+      datacenter: [direct, datacenter]
+      env_type: [direct, env_type]
+      quantity: [direct, quantity]
+      vm_type: [direct, vm_type]
+      respond_to: [direct, respond_to]
+      business_service: [direct, business_service]
+      vm_size: [direct, vm_size]
+  send_vm_info:
     assign_to_key: 'org_pipeline_upload'
     routing_key: 'fly.set_pipeline'
     keys:
