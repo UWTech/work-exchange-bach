@@ -78,21 +78,18 @@ rubrics:
     - [github_url, str]
     - [app_team_manager_github_user, str]
     task_list:
-    - name: 'validate_delete_org_request'
+    - name: 'remove_org_from_pipeline_repo'
       value: 1
       required: 0
-    - name: 'remove_org_from_pipeline_repo'
+    - name: 'remove_org_from_pipeline'
       value: 2
       required: 1
-    - name: 'remove_org_from_pipeline'
-      value: 4
-      required: 2
-    - name: 'remove_org_from_github'
-      value: 8
-      required: 4
-    - name: 'remove_team_from_github'
-      value: 16
-      required: 8
+    # - name: 'remove_org_from_github'
+    #   value: 4
+    #   required: 2
+    # - name: 'remove_team_from_github'
+    #   value: 8
+    #   required: 4
 definitions:
   generate_team_repo_url:
     assign_to_key: team_ssl_remote_url

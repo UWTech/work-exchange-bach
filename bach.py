@@ -35,7 +35,6 @@ elif LOG_LEVEL == 'CRITICAL':
 #################################
 ##### Orchestration Classes #####
 #################################
-
 class Bach:
     """Defines the construct for a list of requests"""
     def __init__(self, init_empty=False):
@@ -52,17 +51,17 @@ class Bach:
                 file_input = None
                 with open('scores/{0}'.format(file_name)) as file:
                     file_input = yaml.load(file)
-                score_name = file_input['score']
-                rubrics = {}
-                for rubr in file_input['rubrics']:
-                    rubr_tasks = []
-                    for task in rubr['task_list']:
-                        rubr_tasks.append(Task(task['name'], task['value'], task['required']))
-                    rubrics[rubr['name']] = Rubric(rubr['name'], rubr_tasks, rubr['validate'])
-                self.scores[score_name] = rubrics
-                for key, value in file_input['definitions'].items():
-                    if key not in self.definitions:
-                        self.definitions[key] = value
+                    score_name = file_input['score']
+                    rubrics = {}
+                    for rubr in file_input['rubrics']:
+                        rubr_tasks = []
+                        for task in rubr['task_list']:
+                            rubr_tasks.append(Task(task['name'], task['value'], task['required']))
+                        rubrics[rubr['name']] = Rubric(rubr['name'], rubr_tasks, rubr['validate'])
+                    self.scores[score_name] = rubrics
+                    for key, value in file_input['definitions'].items():
+                        if key not in self.definitions:
+                            self.definitions[key] = value
     def validate(self, keys, ring):
         """Validates that all of the keys are on the ring"""
         LOGGER.debug("Validating input...")
@@ -192,7 +191,8 @@ class Bach:
                             # This request got an error!
                             if 'error' in checker[2]:
                                 LOGGER.info("Request %r got an error!!", checker[1])
-                                self.remove_request_from_queue(curr_request.id)
+                                # self.remove_request_from_queue(curr_request.id)
+                                curr_request.paused = True
                         else:
                             LOGGER.debug("We have the request, adding %r to the state",
                                          properties.correlation_id)
