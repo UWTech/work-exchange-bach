@@ -397,5 +397,4 @@ if __name__ == "__main__":
     SERVICE = json.loads(os.getenv('VCAP_SERVICES'))[RMQ_SERVICE][0]
     AMQP_URL = SERVICE['credentials']['protocols']['amqp']['uri']
     EXCHANGE = os.getenv('EXCHANGE_QUEUE_NAME', 'work_exchange')
-    REQUEST_LIST = Bach()
     main()
