@@ -379,11 +379,15 @@ def main():
     channel.basic_qos(prefetch_count=1)
     if 'VCAP_SERVICES' in os.environ:
         services = json.loads(os.getenv('VCAP_SERVICES'))
-        redis_env = services[os.getenv('REDIS_SERVICE', 'p-redis')][0]['credentials']
-        redis_env['port'] = int(redis_env['port'])
+        try:
+            redis_env = services[os.getenv('REDIS_SERVICE', 'p-redis')][0]['credentials']
+            redis_env['port'] = int(redis_env['port'])
+        except KeyError:
+            LOGGER.warning("NO REDIS SERVICE AVAILABLE! Persistance will be unavailable.")
+            redis_env = None
     else:
         redis_env = {'host':'localhost', 'port':6379, 'password':''}
-    
+
     request_list = Bach(redis_env=redis_env)
     channel.basic_consume(request_list.router, queue=queue_name)
     channel.start_consuming()
