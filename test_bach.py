@@ -2,7 +2,6 @@
 # Import base modules
 import os
 import json
-import pytest
 import unittest
 import logging
 import mock
@@ -10,6 +9,9 @@ import mock
 
 # Import pip modules
 import pika
+import redis
+import pytest
+import testing.redis
 
 # Import code
 os.environ['LOG_LEVEL'] = 'DEBUG'
@@ -56,7 +58,7 @@ def test_request_processor(mockStR, caplog):
     assert 'Invalid request' not in caplog.text()
     request = request_list.get_request(request_id)
     assert request != 404
-    request_list.process_request(request, None)
+    request_list.process_request(request_id, None)
     mockStR.assert_called_once()
     mockStR.assert_called_with(None,
                                "tester.task1",
@@ -82,7 +84,8 @@ def test_request_router(channel, mockStR, caplog):
     }
     request_id = request_list.add_request_to_queue("test_bach", "test_rubric1", body)
     request = request_list.get_request(request_id)
-    request_list.process_request(request, None)
+    request_list.process_request(request_id, None)
+    request_list.update_request(request_id, request)
     assert 'Task complete' in caplog.text()
     test_pika_method.routing_key = "request.id.{}".format(request_id)
     test_pika_method.delivery_tag = "blahs"
@@ -97,10 +100,79 @@ def test_request_router(channel, mockStR, caplog):
     assert request_list.get_request(request_id).current == 1
     assert request_list.get_request(request_id).pending == 3
     channel.basic_ack.assert_called_once()
+    assert request_list.remove_request_from_queue(request_id) == True
 
 # class TestHelperFuncs:
 #     """Test struct for the helper functions"""
 #     def test_generate_uuid_output(self):
 #         """Test output generate_uuid"""
 #         assert isinstance(bach.generate_uuid("test"), str)
+@mock.patch('bach.send_to_rabbit', side_effect=output_to_stdout)
+@mock.patch('pika.BlockingConnection.channel')
+def test_request_router_with_redis(channel, mockStR, caplog):
+    with testing.redis.RedisServer() as redis_server:
+        test_pika_method = pika.spec.Basic.Deliver()
+        test_pika_props = pika.spec.BasicProperties()
+        request_list = bach.Bach(redis_env=redis_server.dsn())
+        assert request_list.request_list is not None
+        body = {
+            "test_key1": "test",
+            "test_key2": ["string"],
+            "test_key3": True,
+            "test_key4": 34
+        }
+        request_id = request_list.add_request_to_queue("test_bach", "test_rubric1", body)
+        assert request_list.request_list.get(":".join(["REQUEST_LIST", request_id]))
+        request_list.process_request(request_id, None)
+        request = request_list.get_request(request_id)
+        assert request.pending == 1
+        request_list.update_request(request_id, request)
+        assert 'Task complete' in caplog.text()
+        test_pika_method.routing_key = "request.id.{}".format(request_id)
+        test_pika_method.delivery_tag = "blahs"
+        test_pika_props.correlation_id = 1
+        response = {
+            'key':'test_task1_results',
+            'value':'https://new-url.com'
+        }
+        request_list.router(channel, test_pika_method, test_pika_props, str.encode(json.dumps(response)))
+        # assert ' [x] request.id' in caplog.text()
+        # assert 'We need to keep processing request: {}'.format(request_id) in caplog.text()
+        updated_request = request_list.get_request(request_id)
+        assert updated_request.current == 1
+        assert updated_request.pending == 3
+        channel.basic_ack.assert_called_once()
+        assert request_list.remove_request_from_queue(request_id) is True
+        assert request_list.request_list.ttl(":".join(["REQUEST_LIST", request_id])) > 0
 
+@mock.patch('bach.send_to_rabbit', side_effect=output_to_stdout)
+@mock.patch('pika.BlockingConnection.channel')
+def test_new_request_router_with_redis(channel, mockStR, caplog):
+    with testing.redis.RedisServer() as redis_server:
+        # mockStR.reset_mock()
+        test_pika_method = pika.spec.Basic.Deliver()
+        test_pika_props = pika.spec.BasicProperties()
+        request_list = bach.Bach(redis_env=redis_server.dsn())
+        assert request_list.request_list is not None
+        body = {
+            "test_key1": "test",
+            "test_key2": ["string"],
+            "test_key3": True,
+            "test_key4": 34
+        }
+        test_pika_method.routing_key = "request.test_bach.test_rubric1"
+        test_pika_method.delivery_tag = "blahs"
+        test_pika_props.reply_to = "test_queue"
+        request_list.router(channel, test_pika_method, test_pika_props, str.encode(json.dumps(body)))
+        assert mockStR.call_count == 2
+        args, kwargs = mockStR.call_args_list[0]
+        response = json.loads(args[3])
+        assert 'request_id' in response
+        request_id = response['request_id']
+        assert request_list.request_list.get(":".join(["REQUEST_LIST", request_id]))
+        assert json.loads(request_list.request_list.get(":".join(["REQUEST_LIST", request_id]))) == request_list.get_request(request_id).__dict__
+        request = request_list.get_request(request_id)
+        assert request.current == 0
+        assert request.pending == 1
+        channel.basic_ack.assert_called_once()
+        assert request_list.remove_request_from_queue(request_id) == True

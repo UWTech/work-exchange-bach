@@ -14,6 +14,7 @@ import hashlib
 # Import dependancies
 import pika
 import yaml
+import redis
 
 ##################################
 ######### Start logging! #########
@@ -37,11 +38,20 @@ elif LOG_LEVEL == 'CRITICAL':
 #################################
 class Bach:
     """Defines the construct for a list of requests"""
-    def __init__(self, init_empty=False):
+    def __init__(self, init_empty=False, redis_env=None):
         """Loads a Request List object"""
         self.list = {}
         self.definitions = {}
         self.scores = {}
+        try:
+            self.request_list = redis.StrictRedis(**redis_env)
+            self.request_list.info()
+        except redis.ConnectionError:
+            LOGGER.critical("Unable to connect to redis")
+            self.request_list = None
+        except TypeError:
+            LOGGER.critical("No redis config available; no persistance")
+            self.request_list = None
         if not init_empty:
             LOGGER.info("Initializing requests!")
         files = os.listdir('scores')
@@ -81,21 +91,48 @@ class Bach:
         return "All good", 200
     def get_request(self, request_id):
         """Attempt to retrieve request"""
-        try:
-            return self.list[request_id]
-        except KeyError:
-            return 404
+        if self.request_list:
+            try:
+                redis_string = self.request_list.get(":".join(["REQUEST_LIST", request_id]))
+                return Request(**json.loads(str(redis_string, "utf-8")))
+            except:
+                return 404
+        else:
+            try:
+                return self.list[request_id]
+            except KeyError:
+                return 404
+    def update_request(self, request_id, request):
+        """Update the request"""
+        if self.request_list:
+            try:
+                request_s = json.dumps(request.__dict__)
+                return self.request_list.set(":".join(["REQUEST_LIST", request_id]), request_s)
+            except:
+                return 404
+        else:
+            try:
+                self.list[request_id] = request
+            except KeyError:
+                return 404
 
     def check_in_list(self, request_id):
         """Check if request is in list"""
-        return request_id in self.list
+        if self.request_list:
+            value = self.request_list.exists(":".join(["REQUEST_LIST", request_id]))
+            if value == 1:
+                return True
+            else:
+                return False
+        else:
+            return request_id in self.list
 
     def add_request_to_queue(self, score, rubric, body):
         """Add a request to the master queue"""
         try:
             request_id = generate_uuid(json.dumps(body))
             if self.validate(self.scores[score][rubric].validation_keys, body)[1] == 200:
-                self.list[request_id] = Request(request_id, score, rubric, body)
+                self.update_request(request_id, Request(request_id, score, rubric, body))
                 return request_id
             LOGGER.warning("Invalid request")
             return False
@@ -109,16 +146,25 @@ class Bach:
     def remove_request_from_queue(self, request_id):
         """Removes a request from the queue"""
         LOGGER.info('Attempting to delete request, id: %r', request_id)
-        try:
-            del self.list[request_id]
-            return True
-        except KeyError:
-            LOGGER.warning('Request %r not found!', request_id)
-            return False
+        if self.request_list:
+            try:
+                # Let's keep the request around a bit before deleting it
+                return bool(self.request_list.expire(":".join(["REQUEST_LIST", request_id]), 604800))
+            except:
+                LOGGER.warning('Request %r not found!', request_id)
+                return False
+        else:
+            try:
+                del self.list[request_id]
+                return True
+            except KeyError:
+                LOGGER.warning('Request %r not found!', request_id)
+                return False
 
-    def process_request(self, request, channel):
+    def process_request(self, request_id, channel):
         """Finds the next task for the request"""
         found = False
+        request = self.get_request(request_id)
         LOGGER.debug("Looking for "+request.rubric)
         if request.score in self.scores:
             for req in self.scores[request.score]:
@@ -161,9 +207,12 @@ class Bach:
                                 LOGGER.debug("Task complete")
                     if not found:
                         LOGGER.debug("No tasks to preform...")
+                        return False
+                    LOGGER.info("State: Pending - %r; Current - %r", request.pending, request.current)
                     if request.pending == request.current:
                         self.remove_request_from_queue(request.id)
-                    return
+                    else:
+                        self.update_request(request.id, request)
             LOGGER.debug("Could not find definition for "+request.rubric)
         LOGGER.debug("Could not find score for "+request.rubric)
     def router(self, channel, method, properties, body):
@@ -185,7 +234,7 @@ class Bach:
                 if checker[0] == 'id':
                     LOGGER.debug("We need to keep processing request: %r", checker[1])
                     if self.check_in_list(checker[1]):
-                        # print("Request %r came through!" % checker[1])
+                        LOGGER.debug("Request %r came through!", checker[1])
                         curr_request = self.get_request(checker[1])
                         if len(checker) >= 3:
                             # This request got an error!
@@ -193,23 +242,32 @@ class Bach:
                                 LOGGER.info("Request %r got an error!!", checker[1])
                                 # self.remove_request_from_queue(curr_request.id)
                                 curr_request.paused = True
+                            self.update_request(curr_request.id, curr_request)
                         else:
                             LOGGER.debug("We have the request, adding %r to the state",
                                          properties.correlation_id)
                             curr_request.current += int(properties.correlation_id)
                             LOGGER.debug("Assigning %r to key %r", body['value'], body['key'])
                             curr_request.body[body['key']] = body['value']
+                            self.update_request(curr_request.id, curr_request)
                             LOGGER.info("Sending request off to process...")
-                            self.process_request(curr_request, channel)
+                            self.process_request(curr_request.id, channel)
                         # print(body)
+                    else:
+                        LOGGER.warning("Unable to find request %r", checker[1])
                 elif checker[0] in self.scores:
                     if checker[1] in self.scores[checker[0]]:
                         request_id = self.add_request_to_queue(checker[0], checker[1], body)
                         LOGGER.info("Generating %r request. ID: %r", checker[1], request_id)
-                        send_to_rabbit(channel, "logger.info", -1,
-                                       json.dumps({'key':'new_request_id', 'value':request_id}))
+                        if properties.reply_to:
+                            LOGGER.info("Replying back")
+                            send_to_rabbit(channel, properties.reply_to, properties.correlation_id, json.dumps({'request_id': request_id}))
+                        else:
+                            LOGGER.info("Making a log for new request")
+                            send_to_rabbit(channel, "logger.info", -1,
+                                        json.dumps({'key':'new_request_id', 'value':request_id}))
                         LOGGER.info("Sending request off to process...")
-                        self.process_request(self.get_request(request_id), channel)
+                        self.process_request(request_id, channel)
                     else:
                         LOGGER.info("Rubric %r not found in Score %r", checker[1], checker[0])
                 else:
@@ -223,9 +281,9 @@ class Bach:
 
 class Request:
     """Defines the format of a request"""
-    def __init__(self, r_id, score, rubric, body, pending=0, current=0, paused=False,
+    def __init__(self, id, score, rubric, body, pending=0, current=0, paused=False,
                  retry_count=0):
-        self.id = r_id
+        self.id = id
         self.score = str(score)
         self.rubric = str(rubric)
         self.pending = int(pending)
@@ -290,6 +348,7 @@ def generate_uuid(input_string):
 
 def send_to_rabbit(channel, routing_key, value, body, reply_to=None):
     """Generic function for sending messages into rabbitmq"""
+    LOGGER.debug(json.dumps(body))
     if reply_to:
         channel.basic_publish(exchange=EXCHANGE,
                               routing_key=routing_key,
@@ -318,8 +377,15 @@ def main():
     # initialize_processable_requests()
     LOGGER.info(' [*] Waiting for logs. To exit press CTRL+C')
     channel.basic_qos(prefetch_count=1)
-    REQUEST_LIST = Bach()
-    channel.basic_consume(REQUEST_LIST.router, queue=queue_name)
+    if 'VCAP_SERVICES' in os.environ:
+        services = json.loads(os.getenv('VCAP_SERVICES'))
+        redis_env = services[os.getenv('REDIS_SERVICE', 'p-redis')][0]['credentials']
+        redis_env['port'] = int(redis_env['port'])
+    else:
+        redis_env = {'host':'localhost', 'port':6379, 'password':''}
+    
+    request_list = Bach(redis_env=redis_env)
+    channel.basic_consume(request_list.router, queue=queue_name)
     channel.start_consuming()
 
 if __name__ == "__main__":
