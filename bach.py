@@ -259,6 +259,8 @@ class Bach:
                                        json.dumps({'key':'new_request_id', 'value':request_id}))
                         LOGGER.info("Sending request off to process...")
                         self.process_request(self.get_request(request_id), channel)
+                        if properties.reply_to:
+                            send_to_rabbit(channel, properties.reply_to, properties.correlation_id, {'request_id': request_id})
                     else:
                         LOGGER.info("Rubric %r not found in Score %r", checker[1], checker[0])
                 else:
