@@ -161,9 +161,10 @@ class Bach:
                 LOGGER.warning('Request %r not found!', request_id)
                 return False
 
-    def process_request(self, request, channel):
+    def process_request(self, request_id, channel):
         """Finds the next task for the request"""
         found = False
+        request = self.get_request(request_id)
         LOGGER.debug("Looking for "+request.rubric)
         if request.score in self.scores:
             for req in self.scores[request.score]:
@@ -206,7 +207,12 @@ class Bach:
                                 LOGGER.debug("Task complete")
                     if not found:
                         LOGGER.debug("No tasks to preform...")
-                    return request
+                        return False
+                    LOGGER.info("State: Pending - %r; Current - %r", request.pending, request.current)
+                    if request.pending == request.current:
+                        self.remove_request_from_queue(request.id)
+                    else:
+                        self.update_request(request.id, request)
             LOGGER.debug("Could not find definition for "+request.rubric)
         LOGGER.debug("Could not find score for "+request.rubric)
     def router(self, channel, method, properties, body):
@@ -236,18 +242,16 @@ class Bach:
                                 LOGGER.info("Request %r got an error!!", checker[1])
                                 # self.remove_request_from_queue(curr_request.id)
                                 curr_request.paused = True
+                            self.update_request(curr_request.id, curr_request)
                         else:
                             LOGGER.debug("We have the request, adding %r to the state",
                                          properties.correlation_id)
                             curr_request.current += int(properties.correlation_id)
                             LOGGER.debug("Assigning %r to key %r", body['value'], body['key'])
                             curr_request.body[body['key']] = body['value']
-                            LOGGER.info("Sending request off to process...")
-                            curr_request = self.process_request(curr_request, channel)
-                        if curr_request.pending == curr_request.current:
-                            self.remove_request_from_queue(curr_request.id)
-                        else:
                             self.update_request(curr_request.id, curr_request)
+                            LOGGER.info("Sending request off to process...")
+                            self.process_request(curr_request.id, channel)
                         # print(body)
                     else:
                         LOGGER.warning("Unable to find request %r", checker[1])
@@ -255,12 +259,15 @@ class Bach:
                     if checker[1] in self.scores[checker[0]]:
                         request_id = self.add_request_to_queue(checker[0], checker[1], body)
                         LOGGER.info("Generating %r request. ID: %r", checker[1], request_id)
-                        send_to_rabbit(channel, "logger.info", -1,
-                                       json.dumps({'key':'new_request_id', 'value':request_id}))
-                        LOGGER.info("Sending request off to process...")
-                        self.process_request(self.get_request(request_id), channel)
                         if properties.reply_to:
-                            send_to_rabbit(channel, properties.reply_to, properties.correlation_id, {'request_id': request_id})
+                            LOGGER.info("Replying back")
+                            send_to_rabbit(channel, properties.reply_to, properties.correlation_id, json.dumps({'request_id': request_id}))
+                        else:
+                            LOGGER.info("Making a log for new request")
+                            send_to_rabbit(channel, "logger.info", -1,
+                                        json.dumps({'key':'new_request_id', 'value':request_id}))
+                        LOGGER.info("Sending request off to process...")
+                        self.process_request(request_id, channel)
                     else:
                         LOGGER.info("Rubric %r not found in Score %r", checker[1], checker[0])
                 else:
@@ -341,6 +348,7 @@ def generate_uuid(input_string):
 
 def send_to_rabbit(channel, routing_key, value, body, reply_to=None):
     """Generic function for sending messages into rabbitmq"""
+    LOGGER.debug(json.dumps(body))
     if reply_to:
         channel.basic_publish(exchange=EXCHANGE,
                               routing_key=routing_key,
