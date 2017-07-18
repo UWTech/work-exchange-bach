@@ -259,9 +259,20 @@ class Bach:
                     if checker[1] in self.scores[checker[0]]:
                         request_id = self.add_request_to_queue(checker[0], checker[1], body)
                         LOGGER.info("Generating %r request. ID: %r", checker[1], request_id)
+                        if 'metadata' not in body:
+                            request = self.get_request(request_id)
+                            request.body['metadata'] = {
+                                'tracking_key': request_id
+                            }
+                            self.update_request(request_id, request)
+                        else:
+                            if 'tracking_key' not in body['metadata']:
+                                request = self.get_request(request_id)
+                                request.body['metadata']['tracking_key'] = request_id
+                                self.update_request(request_id, request)
                         if properties.reply_to:
                             LOGGER.info("Replying back")
-                            send_to_rabbit(channel, properties.reply_to, properties.correlation_id, json.dumps({'request_id': request_id}))
+                            send_to_rabbit(channel, properties.reply_to, properties.correlation_id, json.dumps({'tracking_key': request_id}))
                         else:
                             LOGGER.info("Making a log for new request")
                             send_to_rabbit(channel, "logger.info", -1,

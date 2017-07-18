@@ -167,8 +167,8 @@ def test_new_request_router_with_redis(channel, mockStR, caplog):
         assert mockStR.call_count == 2
         args, kwargs = mockStR.call_args_list[0]
         response = json.loads(args[3])
-        assert 'request_id' in response
-        request_id = response['request_id']
+        assert 'tracking_key' in response
+        request_id = response['tracking_key']
         assert request_list.request_list.get(":".join(["REQUEST_LIST", request_id]))
         assert json.loads(request_list.request_list.get(":".join(["REQUEST_LIST", request_id]))) == request_list.get_request(request_id).__dict__
         request = request_list.get_request(request_id)
