@@ -43,6 +43,7 @@ class Bach:
         self.list = {}
         self.definitions = {}
         self.scores = {}
+        self.tracking_list = {}
         try:
             self.request_list = redis.StrictRedis(**redis_env)
             self.request_list.info()
@@ -102,6 +103,21 @@ class Bach:
                 return self.list[request_id]
             except KeyError:
                 return 404
+    def get_request_by_tracking_key(self, tracking_key):
+        """Attempt to retrieve request"""
+        if self.request_list:
+            try:
+                redis_string = self.request_list.get(":".join(["TRACKING", tracking_key]))
+                request_string = self.request_list.get(":".join(["REQUEST_LIST", str(redis_string, "utf-8")]))
+                return Request(**json.loads(str(request_string, "utf-8")))
+            except:
+                return 404
+        else:
+            try:
+                request_id = self.tracking_list[tracking_key]
+                return self.list[request_id]
+            except KeyError:
+                return 404
     def update_request(self, request_id, request):
         """Update the request"""
         if self.request_list:
@@ -127,12 +143,44 @@ class Bach:
         else:
             return request_id in self.list
 
+    def check_tracking_in_list(self, tracking_key):
+        """Check if request is in list"""
+        if self.request_list:
+            value = self.request_list.exists(":".join(["TRACKING", tracking_key]))
+            if value == 1:
+                return True
+            else:
+                return False
+        else:
+            return tracking_key in self.tracking_list
+
+    def add_tracking_key(self, tracking_key, request_id):
+        """Add request's tracking key"""
+        if self.request_list:
+            try:
+                return self.request_list.set(":".join(["TRACKING", tracking_key]), request_id)
+            except:
+                return 404
+        else:
+            try:
+                self.tracking_list[tracking_key] = request_id
+            except KeyError:
+                return 404
+        
     def add_request_to_queue(self, score, rubric, body):
         """Add a request to the master queue"""
         try:
             request_id = generate_uuid(json.dumps(body))
             if self.validate(self.scores[score][rubric].validation_keys, body)[1] == 200:
+                if 'metadata' not in body:
+                    body['metadata'] = {
+                        'tracking_key': request_id
+                    }
+                else:
+                    if 'tracking_key' not in body['metadata']:
+                        body['metadata']['tracking_key'] = request_id
                 self.update_request(request_id, Request(request_id, score, rubric, body))
+                self.add_tracking_key(body['metadata']['tracking_key'], request_id)
                 return request_id
             LOGGER.warning("Invalid request")
             return False
@@ -149,6 +197,8 @@ class Bach:
         if self.request_list:
             try:
                 # Let's keep the request around a bit before deleting it
+                tracking_key = self.get_request(request_id).body['metadata']['tracking_key']
+                self.request_list.expire(":".join(["TRACKING", tracking_key]), 604800)
                 return bool(self.request_list.expire(":".join(["REQUEST_LIST", request_id]), 604800))
             except:
                 LOGGER.warning('Request %r not found!', request_id)
@@ -160,7 +210,6 @@ class Bach:
             except KeyError:
                 LOGGER.warning('Request %r not found!', request_id)
                 return False
-
     def process_request(self, request_id, channel):
         """Finds the next task for the request"""
         found = False
@@ -260,17 +309,6 @@ class Bach:
                         if checker[2] in self.scores[checker[1]]:
                             request_id = self.add_request_to_queue(checker[1], checker[2], body)
                             LOGGER.info("Generating %r request. ID: %r", checker[2], request_id)
-                            if 'metadata' not in body:
-                                request = self.get_request(request_id)
-                                request.body['metadata'] = {
-                                    'tracking_key': request_id
-                                }
-                                self.update_request(request_id, request)
-                            else:
-                                if 'tracking_key' not in body['metadata']:
-                                    request = self.get_request(request_id)
-                                    request.body['metadata']['tracking_key'] = request_id
-                                    self.update_request(request_id, request)
                             if properties.reply_to:
                                 LOGGER.info("Replying back")
                                 send_to_rabbit(channel, properties.reply_to, properties.correlation_id, json.dumps({'tracking_key': request_id}))
@@ -287,6 +325,12 @@ class Bach:
                 elif checker[0] == 'query':
                     #TODO write query code
                     LOGGER.debug("Need to make a query!")
+                    if properties.reply_to:
+                        LOGGER.info("Replying back")
+                        request = self.get_request_by_tracking_key(checker[1])
+                        send_to_rabbit(channel, properties.reply_to, properties.correlation_id, json.dumps(request.__dict__))
+                    else:
+                        LOGGER.warning("Someone is trying to query but didn't tell me how to talk")
                 else:
                     LOGGER.warning("Unrecognized command submitted: %r", routing_key)
             except:

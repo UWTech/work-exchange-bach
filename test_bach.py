@@ -20,6 +20,7 @@ import bach
 def output_to_stdout(channel, routing_key, value, body, reply_to=None):
     print(channel)
     print(routing_key)
+    print(body)
 
 # def test_request_list():
 #     """Test adding and removing requests"""
@@ -170,9 +171,48 @@ def test_new_request_router_with_redis(channel, mockStR, caplog):
         assert 'tracking_key' in response
         request_id = response['tracking_key']
         assert request_list.request_list.get(":".join(["REQUEST_LIST", request_id]))
+        assert request_list.request_list.get(":".join(["TRACKING", request_id]))
         assert json.loads(request_list.request_list.get(":".join(["REQUEST_LIST", request_id]))) == request_list.get_request(request_id).__dict__
+        assert json.loads(request_list.request_list.get(":".join(["REQUEST_LIST", request_id]))) == request_list.get_request_by_tracking_key(request_id).__dict__
         request = request_list.get_request(request_id)
         assert request.current == 0
         assert request.pending == 1
         channel.basic_ack.assert_called_once()
+        assert request_list.remove_request_from_queue(request_id) == True
+@mock.patch('bach.send_to_rabbit', side_effect=output_to_stdout)
+@mock.patch('pika.BlockingConnection.channel')
+def test_query_request_router_with_redis(channel, mockStR, caplog):
+    with testing.redis.RedisServer() as redis_server:
+        # mockStR.reset_mock()
+        test_pika_method = pika.spec.Basic.Deliver()
+        test_pika_props = pika.spec.BasicProperties()
+        request_list = bach.Bach(redis_env=redis_server.dsn())
+        body = {
+            "test_key1": "test",
+            "test_key2": ["string"],
+            "test_key3": True,
+            "test_key4": 34
+        }
+        test_pika_method.routing_key = "request.process.test_bach.test_rubric1"
+        test_pika_method.delivery_tag = "blahs"
+        test_pika_props.reply_to = "test_queue"
+        request_list.router(channel, test_pika_method, test_pika_props, str.encode(json.dumps(body)))
+        args, kwargs = mockStR.call_args_list[0]
+        response = json.loads(args[3])
+        request_id = response['tracking_key']
+        request = request_list.get_request(request_id)
+        # mockStR.reset_mock()
+        channel.basic_ack.assert_called_once()
+        channel.basic_ack.reset_mock()
+        # Test a query
+        test_pika_method.routing_key = "request.query.{}".format(request_id)
+        test_pika_method.delivery_tag = "blahs"
+        test_pika_props.reply_to = "test_queue"
+        request_list.router(channel, test_pika_method, test_pika_props, str.encode(json.dumps(body)))
+        channel.basic_ack.assert_called_once()
+        args, kwargs = mockStR.call_args_list[2]
+        response = json.loads(args[3])
+        assert response['id'] == request_id
+        assert response['body']['metadata']['tracking_key'] == request_id
+        assert response == request_list.get_request(request_id).__dict__
         assert request_list.remove_request_from_queue(request_id) == True
