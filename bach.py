@@ -255,34 +255,40 @@ class Bach:
                         # print(body)
                     else:
                         LOGGER.warning("Unable to find request %r", checker[1])
-                elif checker[0] in self.scores:
-                    if checker[1] in self.scores[checker[0]]:
-                        request_id = self.add_request_to_queue(checker[0], checker[1], body)
-                        LOGGER.info("Generating %r request. ID: %r", checker[1], request_id)
-                        if 'metadata' not in body:
-                            request = self.get_request(request_id)
-                            request.body['metadata'] = {
-                                'tracking_key': request_id
-                            }
-                            self.update_request(request_id, request)
-                        else:
-                            if 'tracking_key' not in body['metadata']:
+                elif checker[0] == 'process':
+                    if checker[1] in self.scores:
+                        if checker[2] in self.scores[checker[1]]:
+                            request_id = self.add_request_to_queue(checker[1], checker[2], body)
+                            LOGGER.info("Generating %r request. ID: %r", checker[2], request_id)
+                            if 'metadata' not in body:
                                 request = self.get_request(request_id)
-                                request.body['metadata']['tracking_key'] = request_id
+                                request.body['metadata'] = {
+                                    'tracking_key': request_id
+                                }
                                 self.update_request(request_id, request)
-                        if properties.reply_to:
-                            LOGGER.info("Replying back")
-                            send_to_rabbit(channel, properties.reply_to, properties.correlation_id, json.dumps({'tracking_key': request_id}))
+                            else:
+                                if 'tracking_key' not in body['metadata']:
+                                    request = self.get_request(request_id)
+                                    request.body['metadata']['tracking_key'] = request_id
+                                    self.update_request(request_id, request)
+                            if properties.reply_to:
+                                LOGGER.info("Replying back")
+                                send_to_rabbit(channel, properties.reply_to, properties.correlation_id, json.dumps({'tracking_key': request_id}))
+                            else:
+                                LOGGER.info("Making a log for new request")
+                                send_to_rabbit(channel, "logger.info", -1,
+                                            json.dumps({'key':'new_request_id', 'value':request_id}))
+                            LOGGER.info("Sending request off to process...")
+                            self.process_request(request_id, channel)
                         else:
-                            LOGGER.info("Making a log for new request")
-                            send_to_rabbit(channel, "logger.info", -1,
-                                        json.dumps({'key':'new_request_id', 'value':request_id}))
-                        LOGGER.info("Sending request off to process...")
-                        self.process_request(request_id, channel)
+                            LOGGER.info("Rubric %r not found in Score %r", checker[2], checker[1])
                     else:
-                        LOGGER.info("Rubric %r not found in Score %r", checker[1], checker[0])
+                        LOGGER.info("Score %r not found", checker[1])
+                elif checker[0] == 'query':
+                    #TODO write query code
+                    LOGGER.debug("Need to make a query!")
                 else:
-                    LOGGER.info("Score %r not found", checker[0])
+                    LOGGER.warning("Unrecognized command submitted: %r", routing_key)
             except:
                 LOGGER.info("Unexpected error: %r", sys.exc_info()[0])
                 response = "{0}".format(sys.exc_info()[0]), 500

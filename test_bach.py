@@ -160,7 +160,7 @@ def test_new_request_router_with_redis(channel, mockStR, caplog):
             "test_key3": True,
             "test_key4": 34
         }
-        test_pika_method.routing_key = "request.test_bach.test_rubric1"
+        test_pika_method.routing_key = "request.process.test_bach.test_rubric1"
         test_pika_method.delivery_tag = "blahs"
         test_pika_props.reply_to = "test_queue"
         request_list.router(channel, test_pika_method, test_pika_props, str.encode(json.dumps(body)))
