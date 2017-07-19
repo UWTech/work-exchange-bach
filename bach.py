@@ -352,6 +352,7 @@ class Bach:
                             request.pending -= request.failed_tasks
                             request.failed_tasks = -1
                         request.paused = False
+                        request.retry_count += 1
                         self.update_request(request.id, request)
                         self.process_request(request.id, channel)
                 else:
