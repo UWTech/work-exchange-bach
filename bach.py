@@ -333,7 +333,7 @@ class Bach:
                         if request == 404:
                             send_to_rabbit(channel, properties.reply_to, properties.correlation_id, str(request))
                         else:
-                        send_to_rabbit(channel, properties.reply_to, properties.correlation_id, json.dumps(request.__dict__))
+                            send_to_rabbit(channel, properties.reply_to, properties.correlation_id, json.dumps(request.__dict__))
                     else:
                         LOGGER.warning("Someone is trying to query but didn't tell me how to talk")
                 else:
