@@ -1,4 +1,5 @@
 """Tests for the orchestration"""
+# Test command: pytest --verbose --cov-report term-missing --cov
 # Import base modules
 import os
 import json

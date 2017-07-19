@@ -290,6 +290,10 @@ class Bach:
                             if 'error' in checker[2]:
                                 LOGGER.info("Request %r got an error!!", checker[1])
                                 # self.remove_request_from_queue(curr_request.id)
+                                if curr_request.failed_tasks == -1:
+                                    curr_request.failed_tasks = int(properties.correlation_id)
+                                elif curr_request.failed_tasks > 0:
+                                    curr_request.failed_tasks += int(properties.correlation_id)
                                 curr_request.paused = True
                             self.update_request(curr_request.id, curr_request)
                         else:
@@ -323,7 +327,6 @@ class Bach:
                     else:
                         LOGGER.info("Score %r not found", checker[1])
                 elif checker[0] == 'query':
-                    #TODO write query code
                     LOGGER.debug("Need to make a query!")
                     if properties.reply_to:
                         LOGGER.info("Replying back")
@@ -336,6 +339,21 @@ class Bach:
                             send_to_rabbit(channel, properties.reply_to, properties.correlation_id, json.dumps(request.__dict__))
                     else:
                         LOGGER.warning("Someone is trying to query but didn't tell me how to talk")
+                elif checker[0] == 'restart':
+                    LOGGER.debug("Need to restart a request")
+                    LOGGER.debug("Tracking key: %r", checker[1])
+                    request = self.get_request_by_tracking_key(checker[1])
+                    LOGGER.debug("Request is %r", request)
+                    if request == 404:
+                        LOGGER.warning("Tried to retry a request that doesn't exist")
+                    else:
+                        LOGGER.debug("Retrying task")
+                        if request.failed_tasks > -1:
+                            request.pending -= request.failed_tasks
+                            request.failed_tasks = -1
+                        request.paused = False
+                        self.update_request(request.id, request)
+                        self.process_request(request.id, channel)
                 else:
                     LOGGER.warning("Unrecognized command submitted: %r", routing_key)
             except:
@@ -348,7 +366,7 @@ class Bach:
 class Request:
     """Defines the format of a request"""
     def __init__(self, id, score, rubric, body, pending=0, current=0, paused=False,
-                 retry_count=0):
+                 retry_count=0, failed_tasks=-1):
         self.id = id
         self.score = str(score)
         self.rubric = str(rubric)
@@ -357,6 +375,7 @@ class Request:
         self.paused = paused
         self.retry_count = int(retry_count)
         self.body = body
+        self.failed_tasks = failed_tasks
     def __str__(self):
         return "{{ID:{0}, Type:{1}, Current_state:{2}, Pending_state:{3}, Retries:{4}, Paused:{5}" \
                ", Contents:{6}}}".format(self.id, self.rubric,
