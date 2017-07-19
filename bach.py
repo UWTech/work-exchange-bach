@@ -166,7 +166,7 @@ class Bach:
                 self.tracking_list[tracking_key] = request_id
             except KeyError:
                 return 404
-        
+
     def add_request_to_queue(self, score, rubric, body):
         """Add a request to the master queue"""
         try:
@@ -327,7 +327,12 @@ class Bach:
                     LOGGER.debug("Need to make a query!")
                     if properties.reply_to:
                         LOGGER.info("Replying back")
+                        LOGGER.debug("Tracking key: %r", checker[1])
                         request = self.get_request_by_tracking_key(checker[1])
+                        LOGGER.debug("Request is %r", request)
+                        if request == 404:
+                            send_to_rabbit(channel, properties.reply_to, properties.correlation_id, str(request))
+                        else:
                         send_to_rabbit(channel, properties.reply_to, properties.correlation_id, json.dumps(request.__dict__))
                     else:
                         LOGGER.warning("Someone is trying to query but didn't tell me how to talk")
