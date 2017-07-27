@@ -7,11 +7,11 @@ rubrics:
     - [team_manager, str, list]
     - [spaces, list]
     - [app_team_github_team, int, str]
-    - [bitbucket_url, str]
+    - [github_url, str]
     - [env_type, str]
     - [control_repo_url, str]
     - [compiler_repo_url, str]
-    - [bitbucket_proj, str]
+    - [github_org, str]
     task_list:
     - name: 'generate_team_repo_url'
       value: 1
@@ -41,9 +41,9 @@ rubrics:
     validate:
     - [org_name, str]
     - [team_manager, str, list]
-    - [bitbucket_url, str]
+    - [github_url, str]
     - [foundation, str]
-    - [bitbucket_proj, str]
+    - [github_org, str]
     task_list:
     - name: generate_team_repo_url
       value: 1
@@ -90,11 +90,11 @@ rubrics:
 definitions:
   generate_team_repo_url:
     assign_to_key: team_ssl_remote_url
-    routing_key: bitbucket.generate_repo_url
+    routing_key: github.generate_repo_url
     keys:
-      bitbucket_url: [direct, bitbucket_url]
+      github_url: [direct, github_url]
       name: [compound, '{0}-team', org_name]
-      bitbucket_proj: [direct, bitbucket_proj]
+      github_org: [direct, github_org]
       # teams = []
       # team = {
       #     "id":input_stuff.body['app_team_github_team'],
@@ -109,11 +109,11 @@ definitions:
       #     'permission':'push'}]
   generate_org_repo_url:
     assign_to_key: org_ssl_remote_url
-    routing_key: bitbucket.generate_repo_url
+    routing_key: github.generate_repo_url
     keys:
-      bitbucket_url: [direct, bitbucket_url]
+      github_url: [direct, github_url]
       name: [compound, '{0}-org', org_name]
-      bitbucket_proj: [direct, bitbucket_proj]
+      github_org: [direct, github_org]
       # teams = []
       # team = {
       #     "id":input_stuff.body['app_team_github_team'],
