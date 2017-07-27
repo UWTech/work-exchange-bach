@@ -7,7 +7,7 @@ rubrics:
     - [team_manager, str, list]
     - [spaces, list]
     - [app_team_github_team, int, str]
-    - [github_url, str]
+    - [bitbucket_url, str]
     - [app_team_manager_github_user, str]
     - [env_type, str]
     - [control_repo_url, str]
@@ -75,7 +75,6 @@ rubrics:
     validate:
     - [org_name, str]
     - [app_team_github_team, int, str]
-    - [github_url, str]
     - [app_team_manager_github_user, str]
     task_list:
     - name: 'remove_org_from_pipeline_repo'
@@ -93,11 +92,11 @@ rubrics:
 definitions:
   generate_team_repo_url:
     assign_to_key: team_ssl_remote_url
-    routing_key: github.generate_repo_url
+    routing_key: bitbucket.generate_repo_url
     keys:
-      github_url: [direct, github_url]
+      bitbucket_url: [direct, bitbucket_url]
       name: [compound, '{0}-team', org_name]
-      github_org: [direct, github_org]
+      bitbucket_proj: [direct, bitbucket_proj]
       # teams = []
       # team = {
       #     "id":input_stuff.body['app_team_github_team'],
@@ -112,11 +111,11 @@ definitions:
       #     'permission':'push'}]
   generate_org_repo_url:
     assign_to_key: org_ssl_remote_url
-    routing_key: github.generate_repo_url
+    routing_key: bitbucket.generate_repo_url
     keys:
-      github_url: [direct, github_url]
+      bitbucket_url: [direct, bitbucket_url]
       name: [compound, '{0}-org', org_name]
-      github_org: [direct, github_org]
+      bitbucket_proj: [direct, bitbucket_proj]
       # teams = []
       # team = {
       #     "id":input_stuff.body['app_team_github_team'],
@@ -128,18 +127,16 @@ definitions:
       # body['teams'] = teams
   build_team_repo:
     assign_to_key: 'team_repo_complete'
-    routing_key: 'template_repos.cf_team_repo'
+    routing_key: 'template_repos.cf_team_bitbucket_repo'
     keys:
-      github_url: [direct, github_url]
       ssl_url: [direct, team_ssl_remote_url]
       org_name: [direct, org_name]
       team_manager: [direct, team_manager]
       spaces: [direct, spaces]
   build_org_repo:
     assign_to_key: 'org_repo_complete'
-    routing_key: 'template_repos.cf_org_repo'
+    routing_key: 'template_repos.cf_org_bitbucket_repo'
     keys:
-      github_url: [direct, github_url]
       team_ssl_url: [direct, team_ssl_remote_url]
       org_ssl_url: [direct, org_ssl_remote_url]
       org_name: [direct, org_name]
@@ -157,7 +154,6 @@ definitions:
     keys:
       org_name: [direct, org_name]
       org_ssl_url: [direct, org_ssl_remote_url]
-      github_url: [direct, github_url]
       control_repo_url: [direct, control_repo_url]
       compiler_repo_url: [direct, compiler_repo_url]
   upload_cf_mgmt_pipeline:
@@ -195,7 +191,6 @@ definitions:
     assign_to_key: 'spaces'
     routing_key: 'template_repos.build_from_cf_org'
     keys:
-      github_url: [direct, github_url]
       team_ssl_url: [direct, team_ssl_remote_url]
       org_ssl_url: [direct, org_ssl_remote_url]
       org_name: [direct, org_name]
