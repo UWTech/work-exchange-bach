@@ -8,11 +8,10 @@ rubrics:
     - [spaces, list]
     - [app_team_github_team, int, str]
     - [bitbucket_url, str]
-    - [app_team_manager_github_user, str]
     - [env_type, str]
     - [control_repo_url, str]
     - [compiler_repo_url, str]
-    - [github_org, str]
+    - [bitbucket_proj, str]
     task_list:
     - name: 'generate_team_repo_url'
       value: 1
@@ -42,10 +41,9 @@ rubrics:
     validate:
     - [org_name, str]
     - [team_manager, str, list]
-    - [app_team_github_team, int, str]
-    - [github_url, str]
-    - [app_team_manager_github_user, str]
+    - [bitbucket_url, str]
     - [foundation, str]
+    - [bitbucket_proj, str]
     task_list:
     - name: generate_team_repo_url
       value: 1
