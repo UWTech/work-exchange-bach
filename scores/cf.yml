@@ -127,7 +127,7 @@ definitions:
       # body['teams'] = teams
   build_team_repo:
     assign_to_key: 'team_repo_complete'
-    routing_key: 'template_repos.cf_team_bitbucket_repo'
+    routing_key: 'template_repos.cf_team_repo'
     keys:
       ssl_url: [direct, team_ssl_remote_url]
       org_name: [direct, org_name]
@@ -135,7 +135,7 @@ definitions:
       spaces: [direct, spaces]
   build_org_repo:
     assign_to_key: 'org_repo_complete'
-    routing_key: 'template_repos.cf_org_bitbucket_repo'
+    routing_key: 'template_repos.cf_org_repo'
     keys:
       team_ssl_url: [direct, team_ssl_remote_url]
       org_ssl_url: [direct, org_ssl_remote_url]
