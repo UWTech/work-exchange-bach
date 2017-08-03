@@ -13,10 +13,12 @@ rubrics:
     task_list:
     - name: 'retrieve_vm_info'
       value: 1
-      required: 0
+      req_state: 0
+      mandatory: true
     - name: 'send_vm_info'
       value: 2
-      required: 1
+      req_state: 1
+      mandatory: true
 definitions:
   retrieve_vm_info:
     assign_to_key: 'login_information'

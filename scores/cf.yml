@@ -15,28 +15,36 @@ rubrics:
     task_list:
     - name: 'generate_team_repo_url'
       value: 1
-      required: 0
+      req_state: 0
+      mandatory: true
     - name: 'generate_org_repo_url'
       value: 2
-      required: 1
+      req_state: 1
+      mandatory: true
     - name: 'build_team_repo'
       value: 4
-      required: 2
+      req_state: 2
+      mandatory: true
     - name: 'build_org_repo'
       value: 8
-      required: 6
+      req_state: 6
+      mandatory: true
     - name: 'upload_org_pipeline'
       value: 16
-      required: 8
+      req_state: 8
+      mandatory: true
     - name: 'update_cf_mgmt_repo'
       value: 32
-      required: 16
+      req_state: 16
+      mandatory: true
     - name: 'upload_cf_mgmt_pipeline'
       value: 64
-      required: 32
+      req_state: 32
+      mandatory: true
     - name: 'email_members'
       value: 128
-      required: 64
+      req_state: 64
+      mandatory: true
   - name: build_org_from_cf
     validate:
     - [org_name, str]
@@ -47,28 +55,36 @@ rubrics:
     task_list:
     - name: generate_team_repo_url
       value: 1
-      required: 0
+      req_state: 0
+      mandatory: true
     - name: generate_org_repo_url
       value: 2
-      required: 1
+      req_state: 1
+      mandatory: true
     - name: build_from_cf_org
       value: 4
-      required: 2
+      req_state: 2
+      mandatory: true
     - name: build_team_repo
       value: 8
-      required: 6
+      req_state: 6
+      mandatory: true
     - name: upload_org_pipeline
       value: 16
-      required: 8
+      req_state: 8
+      mandatory: true
     - name: update_cf_mgmt_repo
       value: 32
-      required: 16
+      req_state: 16
+      mandatory: true
     - name: upload_cf_mgmt_pipeline
       value: 64
-      required: 32
+      req_state: 32
+      mandatory: true
     - name: email_members
       value: 128
-      required: 64
+      req_state: 64
+      mandatory: true
   - name: delete_org
     validate:
     - [org_name, str]
@@ -77,16 +93,18 @@ rubrics:
     task_list:
     - name: 'remove_org_from_pipeline_repo'
       value: 1
-      required: 0
+      req_state: 0
+      mandatory: true
     - name: 'remove_org_from_pipeline'
       value: 2
-      required: 1
+      req_state: 1
+      mandatory: true
     # - name: 'remove_org_from_github'
     #   value: 4
-    #   required: 2
+    #   req_state: 2
     # - name: 'remove_team_from_github'
     #   value: 8
-    #   required: 4
+    #   req_state: 4
 definitions:
   generate_team_repo_url:
     assign_to_key: team_ssl_remote_url

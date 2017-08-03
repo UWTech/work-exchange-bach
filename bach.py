@@ -67,7 +67,8 @@ class Bach:
                     for rubr in file_input['rubrics']:
                         rubr_tasks = []
                         for task in rubr['task_list']:
-                            rubr_tasks.append(Task(task['name'], task['value'], task['required']))
+                            LOGGER.debug("Task: %r", task)
+                            rubr_tasks.append(Task(**task))
                         rubrics[rubr['name']] = Rubric(rubr['name'], rubr_tasks, rubr['validate'])
                     self.scores[score_name] = rubrics
                     for key, value in file_input['definitions'].items():
@@ -225,11 +226,11 @@ class Bach:
                     for task in task_list:
                         if (task.value&request.pending) == 0: # If it has not been called
                             if (task.req_state&request.current) == task.req_state:
-                                LOGGER.debug("Running task: "+str(task.target))
+                                LOGGER.debug("Running task: "+str(task.name))
                                 request.pending += task.value
-                                # task_func = eval(str(task.target))
+                                # task_func = eval(str(task.name))
                                 # response = task_func(request)
-                                task_def = self.definitions[task.target]
+                                task_def = self.definitions[task.name]
                                 routing_key = task_def['routing_key']
                                 packet = {}
                                 packet['assign_to_key'] = task_def['assign_to_key']
@@ -406,18 +407,21 @@ class Task:
     Defines the format of a Task.
     A task defines what function is assigned to what bitvalue and what bitvalues it requires.
     """
-    def __init__(self, target, value, req_state):
-        self.target = target
+    def __init__(self, name, value, req_state, mandatory):
+        self.name = name
         self.value = value
         self.req_state = req_state
+        self.mandatory = mandatory
     def __str__(self):
-        return "(Target:{0}, Value:{1}, Required_state:{2})".format(self.target,
-                                                                    self.value,
-                                                                    self.req_state)
+        return "(Target:{0}, Value:{1}, Required_state:{2}, Mandatory:{3})".format(self.name,
+                                                                                   self.value,
+                                                                                   self.req_state,
+                                                                                   self.mandatory)
     def __repr__(self):
-        return "(Target:{0}, Value:{1}, Required_state:{2})".format(self.target,
-                                                                    self.value,
-                                                                    self.req_state)
+        return "(Target:{0}, Value:{1}, Required_state:{2}, Mandatory:{3})".format(self.name,
+                                                                                   self.value,
+                                                                                   self.req_state,
+                                                                                   self.mandatory)
 
 ###########################
 ##### Global Variabls #####

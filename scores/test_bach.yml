@@ -10,13 +10,16 @@ rubrics:
     task_list:
     - name: 'test_task1'
       value: 1
-      required: 0
+      req_state: 0
+      mandatory: true
     - name: 'test_task2'
       value: 2
-      required: 1
+      req_state: 1
+      mandatory: true
     - name: 'test_task3'
       value: 4
-      required: 2
+      req_state: 2
+      mandatory: true
 definitions:
   test_task1:
     assign_to_key: 'test_task1_results'
