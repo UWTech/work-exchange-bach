@@ -109,7 +109,8 @@ class Bach:
         if self.request_list:
             try:
                 redis_string = self.request_list.get(":".join(["TRACKING", tracking_key]))
-                request_string = self.request_list.get(":".join(["REQUEST_LIST", str(redis_string, "utf-8")]))
+                request_string = self.request_list.get(":".join(["REQUEST_LIST",
+                                                       str(redis_string, "utf-8")]))
                 return Request(**json.loads(str(request_string, "utf-8")))
             except:
                 return 404
@@ -139,10 +140,8 @@ class Bach:
             value = self.request_list.exists(":".join(["REQUEST_LIST", request_id]))
             if value == 1:
                 return True
-            else:
-                return False
-        else:
-            return request_id in self.list
+            return False
+        return request_id in self.list
 
     def check_tracking_in_list(self, tracking_key):
         """Check if request is in list"""
@@ -150,10 +149,8 @@ class Bach:
             value = self.request_list.exists(":".join(["TRACKING", tracking_key]))
             if value == 1:
                 return True
-            else:
-                return False
-        else:
-            return tracking_key in self.tracking_list
+            return False
+        return tracking_key in self.tracking_list
 
     def add_tracking_key(self, tracking_key, request_id):
         """Add request's tracking key"""
@@ -228,8 +225,6 @@ class Bach:
                             if (task.req_state&request.current) == task.req_state:
                                 LOGGER.debug("Running task: "+str(task.name))
                                 request.pending += task.value
-                                # task_func = eval(str(task.name))
-                                # response = task_func(request)
                                 task_def = self.definitions[task.name]
                                 routing_key = task_def['routing_key']
                                 packet = {}
@@ -253,16 +248,14 @@ class Bach:
                                                task.value,
                                                packet,
                                                'request.id.{0}'.format(request.id))
-                                found = True
                                 LOGGER.debug("Task complete")
+                                self.update_request(request.id, request)
+                    LOGGER.info("State: Pending - %r; Current - %r", request.pending, request.current)
                     if not found:
                         LOGGER.debug("No tasks to preform...")
-                        return False
-                    LOGGER.info("State: Pending - %r; Current - %r", request.pending, request.current)
-                    if request.pending == request.current:
-                        self.remove_request_from_queue(request.id)
-                    else:
-                        self.update_request(request.id, request)
+                        if request.pending == request.current:
+                            self.remove_request_from_queue(request.id)
+                    return
             LOGGER.debug("Could not find definition for "+request.rubric)
         LOGGER.debug("Could not find score for "+request.rubric)
     def router(self, channel, method, properties, body):
@@ -312,6 +305,12 @@ class Bach:
                 elif checker[0] == 'process':
                     if checker[1] in self.scores:
                         if checker[2] in self.scores[checker[1]]:
+                            if 'assign_to_key' in body:
+                                # Check if a custom key is desired
+                                assign_to_key = body['assign_to_key']
+                                del body['assign_to_key']
+                            else:
+                                assign_to_key = '{}-{}-tracking_key'.format(checker[1],checker[2])
                             request_id = self.add_request_to_queue(checker[1], checker[2], body)
                             LOGGER.info("Generating %r request. ID: %r", checker[2], request_id)
                             if properties.reply_to:
@@ -319,7 +318,7 @@ class Bach:
                                 send_to_rabbit(channel,
                                                properties.reply_to,
                                                properties.correlation_id,
-                                               json.dumps({'key':'{}-{}-tracking_key'.format(checker[1],checker[2]), 'value': request_id}))
+                                               json.dumps({'key': assign_to_key, 'value': request_id}))
                             else:
                                 LOGGER.info("Making a log for new request")
                                 send_to_rabbit(channel, "logger.info", -1,

@@ -1,0 +1,27 @@
+---
+score: 'git_remotes'
+rubrics:
+  - name: add_bitbucket_user_permissions
+    validate:
+    - [repo_slug, str]
+    - [bitbucket_url, int, str]
+    - [bitbucket_proj, str]
+    - [readers, list]
+    - [writers, list]
+    - [admins, list]
+    task_list:
+    - name: 'add_users_to_bitbucket_repo'
+      value: 1
+      req_state: 0
+      mandatory: true
+definitions:
+  add_users_to_bitbucket_repo:
+    assign_to_key: 'add_user_permissions'
+    routing_key: bitbucket.add_user_permissions
+    keys:
+      bitbucket_url: [direct, bitbucket_url]
+      repo_slug: [direct, repo_slug]
+      bitbucket_proj: [direct, bitbucket_proj]
+      readers: [direct, readers]
+      writers: [direct, writers]
+      admins: [direct, admins]

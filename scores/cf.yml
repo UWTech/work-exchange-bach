@@ -4,7 +4,7 @@ rubrics:
   - name: new_org
     validate:
     - [org_name, str]
-    - [team_manager, str, list]
+    - [team_manager, list]
     - [spaces, list]
     - [app_team_github_team, int, str]
     - [bitbucket_url, str]
@@ -45,6 +45,10 @@ rubrics:
       value: 128
       req_state: 64
       mandatory: true
+    - name: 'request_bitbucket_user_permissions'
+      value: 256
+      req_state: 4
+      mandatory: false
   - name: build_org_from_cf
     validate:
     - [org_name, str]
@@ -106,6 +110,16 @@ rubrics:
     #   value: 8
     #   req_state: 4
 definitions:
+  request_bitbucket_user_permissions:
+    assign_to_key: 'bitbucket_user_permissions_tracking_key'
+    routing_key: requests.process.git_remotes.add_bitbucket_user_permissions
+    keys:
+      bitbucket_url: [direct, bitbucket_url]
+      repo_slug: [direct, repo_slug]
+      bitbucket_proj: [direct, bitbucket_proj]
+      readers: [primitive, []]
+      writers: [direct, team_manager]
+      admins: [primitive, []]
   generate_team_repo_url:
     assign_to_key: team_ssl_remote_url
     routing_key: bitbucket.generate_repo_url

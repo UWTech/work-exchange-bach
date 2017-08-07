@@ -3,15 +3,15 @@
 # Import base modules
 import os
 import json
-import unittest
+# import unittest
 import logging
 import mock
 # from unittest.mock import patch, create_autospec
 
 # Import pip modules
 import pika
-import redis
-import pytest
+# import redis
+# import pytest
 import testing.redis
 
 # Import code
