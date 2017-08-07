@@ -169,8 +169,10 @@ def test_new_request_router_with_redis(channel, mockStR, caplog):
         assert mockStR.call_count == 2
         args, kwargs = mockStR.call_args_list[0]
         response = json.loads(args[3])
-        assert 'tracking_key' in response
-        request_id = response['tracking_key']
+        assert 'key' in response
+        assert 'value' in response
+        assert response['key'] == "test_bach-test_rubric1-tracking_key"
+        request_id = response['value']
         assert request_list.request_list.get(":".join(["REQUEST_LIST", request_id]))
         assert request_list.request_list.get(":".join(["TRACKING", request_id]))
         assert json.loads(request_list.request_list.get(":".join(["REQUEST_LIST", request_id]))) == request_list.get_request(request_id).__dict__
@@ -200,7 +202,7 @@ def test_query_request_router_with_redis(channel, mockStR, caplog):
         request_list.router(channel, test_pika_method, test_pika_props, str.encode(json.dumps(body)))
         args, kwargs = mockStR.call_args_list[0]
         response = json.loads(args[3])
-        request_id = response['tracking_key']
+        request_id = response['value']
         request = request_list.get_request(request_id)
         # mockStR.reset_mock()
         channel.basic_ack.assert_called_once()

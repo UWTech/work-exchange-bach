@@ -316,7 +316,7 @@ class Bach:
                             LOGGER.info("Generating %r request. ID: %r", checker[2], request_id)
                             if properties.reply_to:
                                 LOGGER.info("Replying back")
-                                send_to_rabbit(channel, properties.reply_to, properties.correlation_id, json.dumps({'tracking_key': request_id}))
+                                send_to_rabbit(channel, properties.reply_to, properties.correlation_id, json.dumps({'key':'{}-{}-tracking_key'.format(checker[1],checker[2]), 'value': request_id}))
                             else:
                                 LOGGER.info("Making a log for new request")
                                 send_to_rabbit(channel, "logger.info", -1,
