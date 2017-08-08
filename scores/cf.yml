@@ -112,7 +112,7 @@ rubrics:
 definitions:
   request_bitbucket_user_permissions:
     assign_to_key: bitbucket_user_permissions_tracking_key
-    routing_key: requests.process.git_remotes.add_bitbucket_user_permissions
+    routing_key: request.process.git_remotes.add_bitbucket_user_permissions
     keys:
       bitbucket_url: [direct, bitbucket_url]
       repo_slug: [compound, '{0}-team', org_name]
