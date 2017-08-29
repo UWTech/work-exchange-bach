@@ -6,7 +6,6 @@ rubrics:
     - [org_name, str]
     - [team_manager, list]
     - [spaces, list]
-    - [app_team_github_team, int, str]
     - [bitbucket_url, str]
     - [env_type, str]
     - [control_repo_url, str]
@@ -19,36 +18,28 @@ rubrics:
       mandatory: true
     - name: 'generate_org_repo_url'
       value: 2
-      req_state: 1
+      req_state: 0
       mandatory: true
     - name: 'build_team_repo'
       value: 4
-      req_state: 2
+      req_state: 1
       mandatory: true
     - name: 'build_org_repo'
       value: 8
-      req_state: 6
+      req_state: 2
       mandatory: true
     - name: 'upload_org_pipeline'
       value: 16
-      req_state: 8
-      mandatory: true
-    - name: 'update_cf_mgmt_repo'
-      value: 32
-      req_state: 16
-      mandatory: true
-    - name: 'upload_cf_mgmt_pipeline'
-      value: 64
-      req_state: 32
+      req_state: 10
       mandatory: true
     - name: 'email_members'
-      value: 128
-      req_state: 64
+      value: 32
+      req_state: 31
       mandatory: true
     - name: 'request_bitbucket_user_permissions'
-      value: 256
-      req_state: 4
-      mandatory: false
+      value: 64
+      req_state: 3
+      mandatory: true
   - name: build_org_from_cf
     validate:
     - [org_name, str]
@@ -171,13 +162,13 @@ definitions:
       org_ssl_url: [direct, org_ssl_remote_url]
       org_name: [direct, org_name]
       spaces: [direct, spaces]
+      env_type: [direct, env_type]
   upload_org_pipeline:
     assign_to_key: 'org_pipeline_upload'
     routing_key: 'fly.set_pipeline'
     keys:
       clone_url: [direct, org_ssl_remote_url]
       pipeline_name: [compound, '{0}-{1}-pipeline', env_type, org_name]
-      include_git: [primitive, true]
   update_cf_mgmt_repo:
     assign_to_key: 'cf_mgmt_update'
     routing_key: 'template_repos.add_submodule'
