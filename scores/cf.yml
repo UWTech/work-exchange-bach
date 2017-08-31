@@ -26,7 +26,7 @@ rubrics:
       mandatory: true
     - name: 'build_org_repo'
       value: 8
-      req_state: 2
+      req_state: 3
       mandatory: true
     - name: 'upload_org_pipeline'
       value: 16
@@ -39,6 +39,14 @@ rubrics:
     - name: 'request_bitbucket_user_permissions'
       value: 64
       req_state: 3
+      mandatory: true
+    - name: 'add_team_repo_webhook'
+      value: 128
+      req_state: 16
+      mandatory: true
+    - name: 'add_org_repo_webhook'
+      value: 256
+      req_state: 16
       mandatory: true
   - name: build_org_from_cf
     validate:
@@ -101,6 +109,28 @@ rubrics:
     #   value: 8
     #   req_state: 4
 definitions:
+  add_team_repo_webhook:
+    assign_to_key: team_webhook_status
+    routing_key: bitbucket.add_bitbucket_concourse_webhook
+    keys:
+      bitbucket_url: [direct, bitbucket_url]
+      repo_slug: [compound, '{0}-team', org_name]
+      bitbucket_proj: [direct, bitbucket_proj]
+      concourse_team_name: [primitive, 'org-management']
+      pipeline_name: [compound, '{0}-{1}-pipeline', env_type, org_name]
+      resource_name: [primitive, 'team-repo']
+      webhook_token: [primitive, 'cf_mgmt']
+  add_org_repo_webhook:
+    assign_to_key: org_webhook_status
+    routing_key: bitbucket.add_bitbucket_concourse_webhook
+    keys:
+      bitbucket_url: [direct, bitbucket_url]
+      repo_slug: [compound, '{0}-org', org_name]
+      bitbucket_proj: [direct, bitbucket_proj]
+      concourse_team_name: [primitive, 'org-management']
+      pipeline_name: [compound, '{0}-{1}-pipeline', env_type, org_name]
+      resource_name: [primitive, 'org-repo']
+      webhook_token: [primitive, 'cf_mgmt']
   request_bitbucket_user_permissions:
     assign_to_key: bitbucket_user_permissions_tracking_key
     routing_key: request.process.git_remotes.add_bitbucket_user_permissions
@@ -118,18 +148,6 @@ definitions:
       bitbucket_url: [direct, bitbucket_url]
       name: [compound, '{0}-team', org_name]
       bitbucket_proj: [direct, bitbucket_proj]
-      # teams = []
-      # team = {
-      #     "id":input_stuff.body['app_team_github_team'],
-      #     "permission":"pull"
-      # }
-      # teams.append(team)
-      # if GITHUB_ADMIN_TEAM != '-1':
-      #     teams.append({"id":GITHUB_ADMIN_TEAM, "permission":"admin"})
-      # body['teams'] = teams
-      # body['collabs'] = [{
-      #     'name':input_stuff.body['app_team_manager_github_user'],
-      #     'permission':'push'}]
   generate_org_repo_url:
     assign_to_key: org_ssl_remote_url
     routing_key: bitbucket.generate_repo_url
@@ -137,15 +155,6 @@ definitions:
       bitbucket_url: [direct, bitbucket_url]
       name: [compound, '{0}-org', org_name]
       bitbucket_proj: [direct, bitbucket_proj]
-      # teams = []
-      # team = {
-      #     "id":input_stuff.body['app_team_github_team'],
-      #     "permission":"pull"
-      # }
-      # teams.append(team)
-      # if GITHUB_ADMIN_TEAM != '-1':
-      #     teams.append({"id":GITHUB_ADMIN_TEAM, "permission":"admin"})
-      # body['teams'] = teams
   build_team_repo:
     assign_to_key: 'team_repo_complete'
     routing_key: 'template_repos.cf_team_repo'
