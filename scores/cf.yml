@@ -3,9 +3,25 @@ score: 'cf'
 rubrics:
   - name: retrofit_org
     validate:
-    - []
+    - [org_name, str]
+    - [env_type, str]
     task_list:
-    - name:
+    - name: 'update_cf_org_pipeline'
+      value: 1
+      req_state: 0
+      mandatory: true
+    - name: 'add_team_repo_webhook'
+      value: 2
+      req_state: 1
+      mandatory: true
+    - name: 'add_org_repo_webhook'
+      value: 4
+      req_state: 1
+      mandatory: true
+    - name: 'expose_pipeline'
+      value: 8
+      req_state: 7
+      mandatory: true
   - name: new_org
     validate:
     - [org_name, str]
