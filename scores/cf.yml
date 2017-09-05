@@ -7,8 +7,8 @@ rubrics:
     - [env_type, str]
     - [bitbucket_proj, str]
     - [bitbucket_url, str]
-    - [org_ssl_url, str]
-    - [team_ssl_url, str]
+    - [org_ssl_remote_url, str]
+    - [team_ssl_remote_url, str]
     task_list:
     - name: 'update_cf_org_pipeline'
       value: 1
@@ -147,8 +147,8 @@ definitions:
     routing_key: 'template_repos.update_cf_org_pipeline'
     keys:
       org_name: [direct, org_name]
-      org_ssl_url: [direct, org_ssl_url]
-      team_ssl_url: [direct, team_ssl_url]
+      org_ssl_url: [direct, org_ssl_remote_url]
+      team_ssl_url: [direct, org_ssl_remote_url]
       env_type: [direct, env_type]
   expose_pipeline:
     assign_to_key: concourse_exposure
