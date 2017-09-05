@@ -1,6 +1,11 @@
 ---
 score: 'cf'
 rubrics:
+  - name: retrofit_org
+    validate:
+    - []
+    task_list:
+    - name:
   - name: new_org
     validate:
     - [org_name, str]
@@ -47,6 +52,10 @@ rubrics:
     - name: 'add_org_repo_webhook'
       value: 256
       req_state: 16
+      mandatory: true
+    - name: 'expose_pipeline'
+      value: 512
+      req_state: 384
       mandatory: true
   - name: build_org_from_cf
     validate:
@@ -109,6 +118,11 @@ rubrics:
     #   value: 8
     #   req_state: 4
 definitions:
+  expose_pipeline:
+    assign_to_key: concourse_exposure
+    routing_key: fly.expose_pipeline
+    keys:
+      pipeline_name: [compound, '{0}-{1}-pipeline', env_type, org_name]
   add_team_repo_webhook:
     assign_to_key: team_webhook_status
     routing_key: bitbucket.add_bitbucket_concourse_webhook
