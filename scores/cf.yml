@@ -14,17 +14,21 @@ rubrics:
       value: 1
       req_state: 0
       mandatory: true
-    - name: 'add_team_repo_webhook'
+    - name: 'upload_org_pipeline'
       value: 2
       req_state: 1
       mandatory: true
     - name: 'add_org_repo_webhook'
       value: 4
-      req_state: 1
+      req_state: 3
+      mandatory: true
+    - name: 'add_team_repo_webhook'
+      value: 8
+      req_state: 3
       mandatory: true
     - name: 'expose_pipeline'
-      value: 8
-      req_state: 7
+      value: 16
+      req_state: 8
       mandatory: true
   - name: new_org
     validate:
