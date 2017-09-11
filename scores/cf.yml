@@ -148,7 +148,7 @@ definitions:
     keys:
       org_name: [direct, org_name]
       org_ssl_url: [direct, org_ssl_remote_url]
-      team_ssl_url: [direct, org_ssl_remote_url]
+      team_ssl_url: [direct, team_ssl_remote_url]
       env_type: [direct, env_type]
   expose_pipeline:
     assign_to_key: concourse_exposure
