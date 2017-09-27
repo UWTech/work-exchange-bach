@@ -8,6 +8,7 @@ Attributes:
 # Import base modules
 import os
 import sys
+import ast
 from pydoc import locate
 import json
 import uuid
@@ -16,8 +17,13 @@ import hashlib
 
 # Import dependancies
 import pika
-import yaml
+# import yaml # old yaml
 import redis
+import requests
+from ruamel.yaml import YAML
+# Configure new yaml specs
+yaml = YAML()
+yaml.indent(mapping=2, sequence=2, offset=0)
 
 ##################################
 ######### Start logging! #########
@@ -36,23 +42,32 @@ elif LOG_LEVEL == 'ERROR':
     LOGGER.setLevel(40)
 elif LOG_LEVEL == 'CRITICAL':
     LOGGER.setLevel(50)
+
+# Use the underlying certs
+VERIFY = os.getenv('VERIFY', '/etc/ssl/certs')
+if VERIFY == 'True' or VERIFY == 'False':
+    VERIFY = ast.literal_eval(VERIFY)
+SESSION = requests.Session()
+SESSION.verify = VERIFY
 #################################
 ##### Orchestration Classes #####
 #################################
 class Bach:
     """Orchestration Engine
+
     Attributes:
         list (dict) The default in-memory store for requests if Redis is unavailable
         tracking_list = {} # The default in-memory store for request tracking keys
         request_list = None
         definitions = {} # Store for task definitions
         scores = {} # Store for loaded scores
+
     Todo:
         Error check for invaild rubric formating
         Need to notify the requestor if the input fails validation for creation.
     """
 
-    def __init__(self, init_empty=False, redis_env=None):
+    def __init__(self, init_empty=False, redis_env=None, config_server_env=None):
         """Loads a Request List object.
 
         Args:
@@ -67,32 +82,68 @@ class Bach:
             self.request_list = redis.StrictRedis(**redis_env)
             self.request_list.info()
         except redis.ConnectionError:
-            LOGGER.critical("Unable to connect to redis")
+            LOGGER.critical("Unable to connect to redis; no persistance")
             self.request_list = None
         except TypeError:
             LOGGER.critical("No redis config available; no persistance")
             self.request_list = None
         if not init_empty:
             LOGGER.info("Initializing requests!")
-        files = os.listdir('scores')
-        for file_name in files:
-            name = file_name.split('.')
-            if len(name) > 1 and 'yml' in name[1]:
-                file_input = None
-                with open('scores/{0}'.format(file_name)) as file:
-                    file_input = yaml.load(file)
-                    score_name = file_input['score']
-                    rubrics = {}
-                    for rubr in file_input['rubrics']:
-                        rubr_tasks = []
-                        for task in rubr['task_list']:
-                            LOGGER.debug("Task: %r", task)
-                            rubr_tasks.append(Task(**task))
-                        rubrics[rubr['name']] = Rubric(rubr['name'], rubr_tasks, rubr['validate'])
-                    self.scores[score_name] = rubrics
-                    for key, value in file_input['definitions'].items():
-                        if key not in self.definitions:
-                            self.definitions[key] = value
+        if config_server_env:
+            print("Load the scores from config server...")
+            folder_url = "{}/repos/{}/{}/contents/{}".format(config_server_env['url'],
+                                                             config_server_env['owner'],
+                                                             config_server_env['repo'],
+                                                             config_server_env['path'])
+            LOGGER.debug("Folder url: %r", folder_url)
+            remote_scores_resp = SESSION.get(folder_url)
+            if remote_scores_resp.status_code == 200:
+                for score_file in remote_scores_resp.json():
+                    if score_file['type'] != 'file':
+                        continue
+                    else:
+                        name = score_file['name'].split('.')
+                        if len(name) > 1 and 'yml' in name[1]:
+                            file_input = None
+                            resp = SESSION.get(score_file['download_url'])
+                            if resp.status_code == 200:
+                                file_input = yaml.load(resp.text)
+                                score_name = file_input['score']
+                                rubrics = {}
+                                for rubr in file_input['rubrics']:
+                                    rubr_tasks = []
+                                    for task in rubr['task_list']:
+                                        LOGGER.debug("Task: %r", task)
+                                        rubr_tasks.append(Task(**task))
+                                    rubrics[rubr['name']] = Rubric(rubr['name'], rubr_tasks, rubr['validate'])
+                                self.scores[score_name] = rubrics
+                                for key, value in file_input['definitions'].items():
+                                    if key not in self.definitions:
+                                        self.definitions[key] = value
+                            else:
+                                LOGGER.warning("Unable to download score %r", name)
+            else:
+                LOGGER.warning("Unable to find scores! %r", remote_scores_resp)
+        else:
+            files = os.listdir('scores')
+            for file_name in files:
+                name = file_name.split('.')
+                if len(name) > 1 and 'yml' in name[1]:
+                    file_input = None
+                    with open('scores/{0}'.format(file_name)) as file:
+                        file_input = yaml.load(file)
+                        score_name = file_input['score']
+                        rubrics = {}
+                        for rubr in file_input['rubrics']:
+                            rubr_tasks = []
+                            for task in rubr['task_list']:
+                                LOGGER.debug("Task: %r", task)
+                                rubr_tasks.append(Task(**task))
+                            rubrics[rubr['name']] = Rubric(rubr['name'], rubr_tasks, rubr['validate'])
+                        self.scores[score_name] = rubrics
+                        for key, value in file_input['definitions'].items():
+                            if key not in self.definitions:
+                                self.definitions[key] = value
 
     def validate(self, keys, ring):
         """Validates that all of the keys are on the ring.
@@ -260,7 +311,7 @@ class Bach:
             LOGGER.warning("Invalid request")
             return False
         except KeyError:
-            LOGGER.ERROR("No valid score by name: %r", score)
+            LOGGER.error("No valid score by name: %r", score)
             return False
         except:
             LOGGER.warning("Unexpected error: %r\n%r", sys.exc_info()[0], sys.exc_info()[1])
@@ -534,7 +585,7 @@ EXCHANGE = ""
 
 def generate_uuid(input_string):
     """Generate a uuid based on the hash of the input and a random python uuid
-    
+
     Args:
         input_string (str): The string used for hashing
     Returns:
@@ -592,8 +643,10 @@ def main():
             redis_env = None
     else:
         redis_env = {'host':'localhost', 'port':6379, 'password':''}
-
-    request_list = Bach(redis_env=redis_env)
+    config_repo_env = os.getenv('CONFIG_REPO_ENV', None)
+    if config_repo_env:
+        config_repo_env = json.loads(config_repo_env)
+    request_list = Bach(redis_env=redis_env, config_server_env=config_repo_env)
     channel.basic_consume(request_list.router, queue=queue_name)
     channel.start_consuming()
 

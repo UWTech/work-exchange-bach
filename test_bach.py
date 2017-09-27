@@ -18,6 +18,8 @@ import testing.redis
 os.environ['LOG_LEVEL'] = 'DEBUG'
 import bach
 
+TEST_CONFIG_REPO_ENV = json.loads(os.getenv('TEST_CONFIG_REPO_ENV'))
+
 def output_to_stdout(channel, routing_key, value, body, reply_to=None):
     """Capture rabbitmq output for unit testing"""
     print(channel)
@@ -40,8 +42,8 @@ def output_to_stdout(channel, routing_key, value, body, reply_to=None):
 def test_request_validator(mockStR, caplog):
     """Tests the validator logic"""
     caplog.setLevel(logging.DEBUG)
-    request_list = bach.Bach(init_empty=True)
-    request_id = request_list.add_request_to_queue("cf", "new_org", {"body":"body"})
+    request_list = bach.Bach(init_empty=True, config_server_env=TEST_CONFIG_REPO_ENV)
+    request_id = request_list.add_request_to_queue("test_bach", "test_rubric1", {"body":"body"})
     assert 'Invalid request' in caplog.text()
     request = request_list.get_request(request_id)
     # print(request)
@@ -52,7 +54,7 @@ def test_request_validator(mockStR, caplog):
 @mock.patch('bach.send_to_rabbit', side_effect=output_to_stdout)
 def test_request_processor(mockStR, caplog):
     """Tests the request processor function"""
-    request_list = bach.Bach()
+    request_list = bach.Bach(config_server_env=TEST_CONFIG_REPO_ENV)
     body = {
         "test_key1": "test",
         "test_key2": ["string"],
@@ -81,7 +83,7 @@ def test_request_router(channel, mockStR, caplog):
     """Test rabbitmq router logic"""
     test_pika_method = pika.spec.Basic.Deliver()
     test_pika_props = pika.spec.BasicProperties()
-    request_list = bach.Bach()
+    request_list = bach.Bach(config_server_env=TEST_CONFIG_REPO_ENV)
     body = {
         "test_key1": "test",
         "test_key2": ["string"],
@@ -120,7 +122,7 @@ def test_request_router_with_redis(channel, mockStR, caplog):
     with testing.redis.RedisServer() as redis_server:
         test_pika_method = pika.spec.Basic.Deliver()
         test_pika_props = pika.spec.BasicProperties()
-        request_list = bach.Bach(redis_env=redis_server.dsn())
+        request_list = bach.Bach(redis_env=redis_server.dsn(), config_server_env=TEST_CONFIG_REPO_ENV)
         assert request_list.request_list is not None
         body = {
             "test_key1": "test",
@@ -160,7 +162,7 @@ def test_new_request_router_with_redis(channel, mockStR, caplog):
         # mockStR.reset_mock()
         test_pika_method = pika.spec.Basic.Deliver()
         test_pika_props = pika.spec.BasicProperties()
-        request_list = bach.Bach(redis_env=redis_server.dsn())
+        request_list = bach.Bach(redis_env=redis_server.dsn(), config_server_env=TEST_CONFIG_REPO_ENV)
         assert request_list.request_list is not None
         body = {
             "test_key1": "test",
@@ -188,6 +190,7 @@ def test_new_request_router_with_redis(channel, mockStR, caplog):
         assert request.pending == 1
         channel.basic_ack.assert_called_once()
         assert request_list.remove_request_from_queue(request_id) == True
+
 @mock.patch('bach.send_to_rabbit', side_effect=output_to_stdout)
 @mock.patch('pika.BlockingConnection.channel')
 def test_query_request_router_with_redis(channel, mockStR, caplog):
@@ -196,7 +199,7 @@ def test_query_request_router_with_redis(channel, mockStR, caplog):
         # mockStR.reset_mock()
         test_pika_method = pika.spec.Basic.Deliver()
         test_pika_props = pika.spec.BasicProperties()
-        request_list = bach.Bach(redis_env=redis_server.dsn())
+        request_list = bach.Bach(redis_env=redis_server.dsn(), config_server_env=TEST_CONFIG_REPO_ENV)
         body = {
             "test_key1": "test",
             "test_key2": ["string"],
