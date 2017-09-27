@@ -534,6 +534,7 @@ EXCHANGE = ""
 
 def generate_uuid(input_string):
     """Generate a uuid based on the hash of the input and a random python uuid
+    
     Args:
         input_string (str): The string used for hashing
     Returns:
