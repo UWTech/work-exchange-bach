@@ -19,6 +19,7 @@ os.environ['LOG_LEVEL'] = 'DEBUG'
 import bach
 
 def output_to_stdout(channel, routing_key, value, body, reply_to=None):
+    """Capture rabbitmq output for unit testing"""
     print(channel)
     print(routing_key)
     print(body)
@@ -37,6 +38,7 @@ def output_to_stdout(channel, routing_key, value, body, reply_to=None):
 
 @mock.patch('bach.send_to_rabbit', side_effect=output_to_stdout)
 def test_request_validator(mockStR, caplog):
+    """Tests the validator logic"""
     caplog.setLevel(logging.DEBUG)
     request_list = bach.Bach(init_empty=True)
     request_id = request_list.add_request_to_queue("cf", "new_org", {"body":"body"})
@@ -49,6 +51,7 @@ def test_request_validator(mockStR, caplog):
 
 @mock.patch('bach.send_to_rabbit', side_effect=output_to_stdout)
 def test_request_processor(mockStR, caplog):
+    """Tests the request processor function"""
     request_list = bach.Bach()
     body = {
         "test_key1": "test",
@@ -75,6 +78,7 @@ def test_request_processor(mockStR, caplog):
 @mock.patch('bach.send_to_rabbit', side_effect=output_to_stdout)
 @mock.patch('pika.BlockingConnection.channel')
 def test_request_router(channel, mockStR, caplog):
+    """Test rabbitmq router logic"""
     test_pika_method = pika.spec.Basic.Deliver()
     test_pika_props = pika.spec.BasicProperties()
     request_list = bach.Bach()
@@ -112,6 +116,7 @@ def test_request_router(channel, mockStR, caplog):
 @mock.patch('bach.send_to_rabbit', side_effect=output_to_stdout)
 @mock.patch('pika.BlockingConnection.channel')
 def test_request_router_with_redis(channel, mockStR, caplog):
+    "Test rmq router function using redis"
     with testing.redis.RedisServer() as redis_server:
         test_pika_method = pika.spec.Basic.Deliver()
         test_pika_props = pika.spec.BasicProperties()
@@ -150,6 +155,7 @@ def test_request_router_with_redis(channel, mockStR, caplog):
 @mock.patch('bach.send_to_rabbit', side_effect=output_to_stdout)
 @mock.patch('pika.BlockingConnection.channel')
 def test_new_request_router_with_redis(channel, mockStR, caplog):
+    """Test request creation with redis"""
     with testing.redis.RedisServer() as redis_server:
         # mockStR.reset_mock()
         test_pika_method = pika.spec.Basic.Deliver()
@@ -185,6 +191,7 @@ def test_new_request_router_with_redis(channel, mockStR, caplog):
 @mock.patch('bach.send_to_rabbit', side_effect=output_to_stdout)
 @mock.patch('pika.BlockingConnection.channel')
 def test_query_request_router_with_redis(channel, mockStR, caplog):
+    """Test the status check route"""
     with testing.redis.RedisServer() as redis_server:
         # mockStR.reset_mock()
         test_pika_method = pika.spec.Basic.Deliver()

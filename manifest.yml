@@ -4,11 +4,13 @@ applications:
   instances: 1
   no-route: true
   health-check-type: process
-  memory: 512M
-  buildpack: https://github.com/cloudfoundry/python-buildpack#v1.5.17
+  memory: 1G
+  buildpack: https://github.com/rhardt-pivotal/sidecar-buildpack
   command: python bach.py
   services:
     - work-exchange
+    - work-exchange-db
+    - dev-work-exchange-config
   env:
     # required variables
     RMQ_SERVICE: p-rabbitmq

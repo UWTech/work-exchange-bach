@@ -1,7 +1,10 @@
-"""
+"""Bach (Orchestration Engine) Microservice
 This is the orchestration module for Work Exchange. It's used to pick up and keep track of incoming
 requests. It pulls in 'scores' as extra modules to call for different rubrics.
+
+Attributes:
 """
+
 # Import base modules
 import os
 import sys
@@ -37,14 +40,30 @@ elif LOG_LEVEL == 'CRITICAL':
 ##### Orchestration Classes #####
 #################################
 class Bach:
-    """Defines the construct for a list of requests"""
+    """Orchestration Engine
+    Attributes:
+        list (dict) The default in-memory store for requests if Redis is unavailable
+        tracking_list = {} # The default in-memory store for request tracking keys
+        request_list = None
+        definitions = {} # Store for task definitions
+        scores = {} # Store for loaded scores
+    Todo:
+        Error check for invaild rubric formating
+        Need to notify the requestor if the input fails validation for creation.
+    """
+
     def __init__(self, init_empty=False, redis_env=None):
-        """Loads a Request List object"""
-        self.list = {}
-        self.definitions = {}
-        self.scores = {}
-        self.tracking_list = {}
-        try:
+        """Loads a Request List object.
+
+        Args:
+            init_empty (bool, optional): Currently unused; would be set if we wanted to do an empty init
+            redis_env (dict): The user, pass, and url for a redis db
+        """
+        self.list = {} # The default in-memory store for requests if Redis is unavailable
+        self.tracking_list = {} # The default in-memory store for request tracking keys
+        self.definitions = {} # Store for task definitions
+        self.scores = {} # Store for loaded scores
+        try: # Ateempt to load the redis env config
             self.request_list = redis.StrictRedis(**redis_env)
             self.request_list.info()
         except redis.ConnectionError:
@@ -74,8 +93,20 @@ class Bach:
                     for key, value in file_input['definitions'].items():
                         if key not in self.definitions:
                             self.definitions[key] = value
+
     def validate(self, keys, ring):
-        """Validates that all of the keys are on the ring"""
+        """Validates that all of the keys are on the ring.
+
+        Args:
+            keys (list<list>): A list of keys that need to be present, and their types
+            ring (dict): The body to validate
+        Returns:
+            tuple: a str, int tuple with the results of the validation
+        Notes:
+            Tuple return codes:
+            - 400, incorrect input; first part of tuple contains error message
+            - 200, correct input
+        """
         LOGGER.debug("Validating input...")
         for key in keys:
             try:
@@ -91,8 +122,15 @@ class Bach:
             except KeyError:
                 return "Missing required key: "+key[0], 400
         return "All good", 200
+
     def get_request(self, request_id):
-        """Attempt to retrieve request"""
+        """Attempt to retrieve request.
+
+        Args:
+            request_id (str): UUID of the request
+        Returns:
+            str | int: If a valid value is found, the UUID is returned as a str; otherwise a 404 int is returned.
+        """
         if self.request_list:
             try:
                 redis_string = self.request_list.get(":".join(["REQUEST_LIST", request_id]))
@@ -104,8 +142,14 @@ class Bach:
                 return self.list[request_id]
             except KeyError:
                 return 404
+
     def get_request_by_tracking_key(self, tracking_key):
-        """Attempt to retrieve request"""
+        """Attempt to retrieve request
+
+        Args:
+            tracking_key (str): Tracking key of the request
+        Returns:
+            str | int: If a valid value is found, the UUID is returned as a str; otherwise a 404 int is returned."""
         if self.request_list:
             try:
                 redis_string = self.request_list.get(":".join(["TRACKING", tracking_key]))
@@ -120,8 +164,16 @@ class Bach:
                 return self.list[request_id]
             except KeyError:
                 return 404
+
     def update_request(self, request_id, request):
-        """Update the request"""
+        """Update the request.
+
+        Args:
+            request_id (str): UUID of the request
+            request (bach.Request): the full request object to be updated.
+        Returns:
+            int: Status code from Redis Update command; otherwise 404 is returned.
+        """
         if self.request_list:
             try:
                 request_s = json.dumps(request.__dict__)
@@ -135,7 +187,13 @@ class Bach:
                 return 404
 
     def check_in_list(self, request_id):
-        """Check if request is in list"""
+        """Check if request is in list.
+
+        Args:
+            request_id (str): UUID of the request
+        Returns:
+            bool: True if request is found in redis or internal list; False otherwise.
+        """
         if self.request_list:
             value = self.request_list.exists(":".join(["REQUEST_LIST", request_id]))
             if value == 1:
@@ -144,7 +202,13 @@ class Bach:
         return request_id in self.list
 
     def check_tracking_in_list(self, tracking_key):
-        """Check if request is in list"""
+        """Check if request is in list using tracking key.
+
+        Args:
+            tracking_key (str): Tracking key of the request
+        Returns:
+            bool: True if request is found in redis or internal list; False otherwise.
+        """
         if self.request_list:
             value = self.request_list.exists(":".join(["TRACKING", tracking_key]))
             if value == 1:
@@ -153,7 +217,12 @@ class Bach:
         return tracking_key in self.tracking_list
 
     def add_tracking_key(self, tracking_key, request_id):
-        """Add request's tracking key"""
+        """Add request's tracking key.
+
+        Args:
+            tracking_key (str): tracking key to pair with the request id
+            request_id (str): request id the tracking key will be paired with
+        """
         if self.request_list:
             try:
                 return self.request_list.set(":".join(["TRACKING", tracking_key]), request_id)
@@ -166,7 +235,15 @@ class Bach:
                 return 404
 
     def add_request_to_queue(self, score, rubric, body):
-        """Add a request to the master queue"""
+        """Add a request to the master queue.
+
+        Args:
+            score (str): name of the score the request will be using
+            rubric (bach.Rubric): rubric the request will be using
+            body (dict): user input of for the request to be validated
+        Returns:
+            str | bool: Returns the request uuid if input passes validation, returns False otherwise.
+        """
         try:
             request_id = generate_uuid(json.dumps(body))
             if self.validate(self.scores[score][rubric].validation_keys, body)[1] == 200:
@@ -190,7 +267,12 @@ class Bach:
             return False
 
     def remove_request_from_queue(self, request_id):
-        """Removes a request from the queue"""
+        """Removes a request from the queue
+        Args:
+            request_id (str): UUID of the request to remove.
+        Returns:
+            bool: True if sucessful, otherwise False.
+        """
         LOGGER.info('Attempting to delete request, id: %r', request_id)
         if self.request_list:
             try:
@@ -208,8 +290,17 @@ class Bach:
             except KeyError:
                 LOGGER.warning('Request %r not found!', request_id)
                 return False
+
     def process_request(self, request_id, channel):
-        """Finds the next task for the request"""
+        """Finds and sends out the next task for the request.
+
+        This function is one of the two core functions of Bach. It sifts through the tasks within
+        the rubric to determine the state of the request and which tasks need to be sent off.
+
+        Args:
+            request_id (str): the UUID of the request
+            channel (pika.channel.Channel): The RMQ channel to send tasks out on
+        """
         found = False
         request = self.get_request(request_id)
         LOGGER.debug("Looking for "+request.rubric)
@@ -258,8 +349,16 @@ class Bach:
                     return
             LOGGER.debug("Could not find definition for "+request.rubric)
         LOGGER.debug("Could not find score for "+request.rubric)
+
     def router(self, channel, method, properties, body):
-        """Callback function for incoming messages. Routes the message to the correct function."""
+        """Callback function for incoming messages. Routes the message to the correct function.
+
+        Args:
+            chan (pika.channel.Channel): The string used for hashing
+            method (pika.spec.Basic.Deliver): Information about the received message
+            props (pika.spec.BasicProperties): The properties of the received message
+            body (dict): The body included in the received message
+        """
         LOGGER.info(" [x] %r:%r", method.routing_key, body)
         try:
             body = json.loads(str(body, "utf-8"))
@@ -371,15 +470,15 @@ class Request:
     """Defines the format of a request"""
     def __init__(self, id, score, rubric, body, pending=0, current=0, paused=False,
                  retry_count=0, failed_tasks=-1):
-        self.id = id
-        self.score = str(score)
-        self.rubric = str(rubric)
-        self.pending = int(pending)
-        self.current = int(current)
-        self.paused = paused
-        self.retry_count = int(retry_count)
-        self.body = body
-        self.failed_tasks = failed_tasks
+        self.id = id # Internel ID used for processing within the exchange
+        self.score = str(score) # Name of the score being used to process the request
+        self.rubric = str(rubric) # Name of the rubric being used to process the request
+        self.pending = int(pending) # Used to track which tasks have been requested
+        self.current = int(current) # Used to track which tasks have been completed successfully
+        self.paused = paused # If a request is paused for processing
+        self.retry_count = int(retry_count) # How many times the request has been processed
+        self.body = body # Request details; contains user input and task outputs in json/dict format
+        self.failed_tasks = failed_tasks # Value(s) of any failed tasks; -1 if none
     def __str__(self):
         return "{{ID:{0}, Type:{1}, Current_state:{2}, Pending_state:{3}, Retries:{4}, Paused:{5}" \
                ", Contents:{6}}}".format(self.id, self.rubric,
@@ -410,10 +509,10 @@ class Task:
     A task defines what function is assigned to what bitvalue and what bitvalues it requires.
     """
     def __init__(self, name, value, req_state, mandatory):
-        self.name = name
-        self.value = value
-        self.req_state = req_state
-        self.mandatory = mandatory
+        self.name = name # Name of the task; correlates with the task definition name
+        self.value = value # The bit to flip for
+        self.req_state = req_state # Which bits need to be present before processing
+        self.mandatory = mandatory # If a task is mandatory for the request to process.
     def __str__(self):
         return "(Target:{0}, Value:{1}, Required_state:{2}, Mandatory:{3})".format(self.name,
                                                                                    self.value,
@@ -434,12 +533,25 @@ AMQP_URL = ""
 EXCHANGE = ""
 
 def generate_uuid(input_string):
-    """Generate a uuid based on the hash of the input and a random python uuid"""
+    """Generate a uuid based on the hash of the input and a random python uuid
+    Args:
+        input_string (str): The string used for hashing
+    Returns:
+        str: A string representation of the input's hash mixed with a rotating UUID
+    """
     input_md = hashlib.md5(input_string.encode())
     return hashlib.sha256(input_md.digest()+uuid.uuid4().bytes).hexdigest()
 
 def send_to_rabbit(channel, routing_key, value, body, reply_to=None):
-    """Generic function for sending messages into rabbitmq"""
+    """Generic function for sending messages into rabbitmq
+
+    Args:
+        chan (pika.channel.Channel): The string used for hashing
+        method (pika.spec.Basic.Deliver): Information about the received message
+        props (pika.spec.BasicProperties): The properties of the received message
+        body (dict): The body included in the received message
+        reply_to (str, optional): What to respond to, if needed
+    """
     LOGGER.debug(json.dumps(body))
     if reply_to:
         channel.basic_publish(exchange=EXCHANGE,
