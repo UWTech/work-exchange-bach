@@ -3,22 +3,15 @@
 # Import base modules
 import os
 import json
-# import unittest
 import logging
 import mock
-# from unittest.mock import patch, create_autospec
-
 # Import pip modules
 import pika
-# import redis
-# import pytest
 import testing.redis
 
 # Import code
 os.environ['LOG_LEVEL'] = 'DEBUG'
 import bach
-
-TEST_CONFIG_REPO_ENV = json.loads(os.getenv('TEST_CONFIG_REPO_ENV'))
 
 def output_to_stdout(channel, routing_key, value, body, reply_to=None):
     """Capture rabbitmq output for unit testing"""
@@ -37,6 +30,21 @@ def output_to_stdout(channel, routing_key, value, body, reply_to=None):
 #     assert request.body == {"body":"body"}
 #     assert request_list.remove_request_from_queue(request_id) is True
 #     assert request_list.check_in_list(request_id) is False
+@mock.patch('bach.send_to_rabbit', side_effect=output_to_stdout)
+def test_local_score_loader(mockStR, caplog):
+    """Tests the validator logic with a local score"""
+    caplog.setLevel(logging.DEBUG)
+    request_list = bach.Bach(init_empty=True)
+    request_id = request_list.add_request_to_queue("test_bach", "test_rubric1", {"body":"body"})
+    assert 'Invalid request' in caplog.text()
+    request = request_list.get_request(request_id)
+    # print(request)
+    # request_list.process_request(request, None)
+    mockStR.assert_not_called()
+    assert request == 404
+
+# Load the config for testing
+TEST_CONFIG_REPO_ENV = json.loads(os.getenv('TEST_CONFIG_REPO_ENV'))
 
 @mock.patch('bach.send_to_rabbit', side_effect=output_to_stdout)
 def test_request_validator(mockStR, caplog):
